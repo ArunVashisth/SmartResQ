@@ -1,0 +1,281 @@
+{% extends "base.html" %}
+
+{% block title %}Analysis Details #{{ analysis.id }}{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ url_for('index') }}">Home</a></li>
+                <li class="breadcrumb-item"><a href="{{ url_for('archive_page') }}">Archive</a></li>
+                <li class="breadcrumb-item active">Analysis #{{ analysis.id }}</li>
+            </ol>
+        </nav>
+        
+        <h1 class="mb-4">
+            <i class="fas fa-video"></i> Analysis Details #{{ analysis.id }}
+        </h1>
+    </div>
+</div>
+
+<!-- Analysis Overview -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-info-circle"></i> Analysis Overview
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <table class="table table-borderless">
+                            <tr>
+                                <td><strong>Video File:</strong></td>
+                                <td>{{ analysis.video_file }}</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Total Frames:</strong></td>
+                                <td>{{ "{:,}".format(analysis.total_frames) }}</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Processed Frames:</strong></td>
+                                <td>{{ "{:,}".format(analysis.processed_frames) }}</td>
+                            </tr>
+                            <tr>
+                                <td><strong>FPS:</strong></td>
+                                <td>{{ analysis.fps }}</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Duration:</strong></td>
+                                <td>{{ "%.1f"|format(analysis.duration) }} seconds</td>
+                            </tr>
+                        </table>
+                    </div>
+                    <div class="col-md-6">
+                        <table class="table table-borderless">
+                            <tr>
+                                <td><strong>Start Time:</strong></td>
+                                <td>{{ analysis.start_time[:19] }}</td>
+                            </tr>
+                            <tr>
+                                <td><strong>End Time:</strong></td>
+                                <td>{{ analysis.end_time[:19] if analysis.end_time else 'N/A' }}</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Status:</strong></td>
+                                <td>
+                                    <span class="badge {% if analysis.status == 'completed' %}bg-success{% elif analysis.status == 'processing' %}bg-warning{% else %}bg-danger{% endif %}">
+                                        {{ analysis.status }}
+                                    </span>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td><strong>Accidents Detected:</strong></td>
+                                <td>
+                                    {% if analysis.accidents_detected > 0 %}
+                                        <span class="badge bg-danger">{{ analysis.accidents_detected }}</span>
+                                    {% else %}
+                                        <span class="badge bg-success">0</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            <tr>
+                                <td><strong>Created:</strong></td>
+                                <td>{{ analysis.created_at[:19] }}</td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+                <div class="row mt-3">
+                    <div class="col-12">
+                        <div class="alert alert-info">
+                            <i class="fas fa-folder"></i>
+                            <strong>Output Directory:</strong> {{ analysis.output_dir }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Accidents Section -->
+{% if analysis.accidents %}
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-danger text-white">
+                <h5 class="mb-0">
+                    <i class="fas fa-exclamation-triangle"></i> Detected Accidents ({{ analysis.accidents|length }})
+                </h5>
+            </div>
+            <div class="card-body">
+                {% for accident in analysis.accidents %}
+                <div class="card mb-3 accident-card">
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-8">
+                                <h6 class="card-title">
+                                    Accident #{{ accident.id }} - Frame {{ accident.frame_number }}
+                                </h6>
+                                <table class="table table-sm table-borderless">
+                                    <tr>
+                                        <td><strong>Confidence:</strong></td>
+                                        <td>
+                                            <div class="progress" style="height: 15px;">
+                                                <div class="progress-bar {% if accident.confidence >= 90 %}bg-success{% elif accident.confidence >= 70 %}bg-warning{% else %}bg-danger{% endif %}" 
+                                                     style="width: {{ accident.confidence }}%">
+                                                    {{ accident.confidence|round(1) }}%
+                                                </div>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Timestamp:</strong></td>
+                                        <td>{{ accident.timestamp[:19] }}</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>License Plate:</strong></td>
+                                        <td>
+                                            {% if accident.license_plate_detected %}
+                                                <span class="badge bg-success">
+                                                    <i class="fas fa-check"></i> Detected
+                                                </span>
+                                            {% else %}
+                                                <span class="badge bg-secondary">
+                                                    <i class="fas fa-times"></i> Not Detected
+                                                </span>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                </table>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="text-center">
+                                    {% if accident.photo_path %}
+                                        <img src="{{ url_for('view_file', filename=accident.photo_path) }}" 
+                                             alt="Accident Frame" class="thumbnail mb-2" style="max-height: 120px;">
+                                    {% endif %}
+                                    <div class="d-grid gap-2">
+                                        <a href="{{ url_for('accident_detail', accident_id=accident.id) }}" 
+                                           class="btn btn-sm btn-primary">
+                                            <i class="fas fa-info-circle"></i> Details
+                                        </a>
+                                        {% if accident.photo_path %}
+                                            <a href="{{ url_for('view_file', filename=accident.photo_path) }}" 
+                                               class="btn btn-sm btn-outline-danger" target="_blank">
+                                                <i class="fas fa-image"></i> View Image
+                                            </a>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+{% else %}
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body text-center">
+                <i class="fas fa-check-circle fa-3x text-success mb-3"></i>
+                <h5>No Accidents Detected</h5>
+                <p class="text-muted">This analysis completed without detecting any accidents.</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- File Browser -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-folder-open"></i> Archived Files
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="text-center p-3 border rounded">
+                            <i class="fas fa-images fa-2x text-primary mb-2"></i>
+                            <h6>Processed Frames</h6>
+                            <p class="text-muted small">Frames with detection overlays</p>
+                            <button class="btn btn-outline-primary btn-sm" disabled>
+                                <i class="fas fa-folder"></i> {{ analysis.output_dir }}/frames/
+                            </button>
+                        </div>
+                    </div>
+                    {% if analysis.accidents %}
+                    <div class="col-md-4">
+                        <div class="text-center p-3 border rounded">
+                            <i class="fas fa-exclamation-triangle fa-2x text-danger mb-2"></i>
+                            <h6>Accident Photos</h6>
+                            <p class="text-muted small">{{ analysis.accidents|length }} accident snapshots</p>
+                            <button class="btn btn-outline-danger btn-sm" disabled>
+                                <i class="fas fa-folder"></i> {{ analysis.output_dir }}/accidents/
+                            </button>
+                        </div>
+                    </div>
+                    {% endif %}
+                    <div class="col-md-4">
+                        <div class="text-center p-3 border rounded">
+                            <i class="fas fa-id-card fa-2x text-info mb-2"></i>
+                            <h6>License Plates</h6>
+                            <p class="text-muted small">Detected license plates</p>
+                            <button class="btn btn-outline-info btn-sm" disabled>
+                                <i class="fas fa-folder"></i> {{ analysis.output_dir }}/license_plates/
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Actions -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-3">
+                        <a href="{{ url_for('archive_page') }}" class="btn btn-outline-primary w-100">
+                            <i class="fas fa-arrow-left"></i> Back to Archive
+                        </a>
+                    </div>
+                    {% if analysis.accidents %}
+                    <div class="col-md-3">
+                        <a href="{{ url_for('accidents_page') }}?analysis_id={{ analysis.id }}" 
+                           class="btn btn-outline-danger w-100">
+                            <i class="fas fa-exclamation-triangle"></i> View All Accidents
+                        </a>
+                    </div>
+                    {% endif %}
+                    <div class="col-md-3">
+                        <button class="btn btn-outline-info w-100" disabled>
+                            <i class="fas fa-download"></i> Download Report
+                        </button>
+                    </div>
+                    <div class="col-md-3">
+                        <button class="btn btn-outline-secondary w-100" disabled>
+                            <i class="fas fa-share"></i> Share Analysis
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,208 @@
+{% extends "base.html" %}
+
+{% block title %}Smart Resq Dashboard{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h1 class="mb-4">
+            <i class="fas fa-tachometer-alt"></i> Smart Resq Dashboard
+        </h1>
+    </div>
+</div>
+
+<!-- Statistics Cards -->
+<div class="row mb-4">
+    <div class="col-md-3 mb-3">
+        <div class="card stats-card hover-scale">
+            <div class="card-body text-center">
+                <h2 class="card-title">{{ stats.total_analyses }}</h2>
+                <p class="card-text">Total Analyses</p>
+                <i class="fas fa-video fa-2x"></i>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 mb-3">
+        <div class="card stats-card hover-scale">
+            <div class="card-body text-center">
+                <h2 class="card-title">{{ stats.total_accidents }}</h2>
+                <p class="card-text">Total Accidents</p>
+                <i class="fas fa-exclamation-triangle fa-2x"></i>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 mb-3">
+        <div class="card stats-card hover-scale">
+            <div class="card-body text-center">
+                <h2 class="card-title">{{ stats.recent_analyses }}</h2>
+                <p class="card-text">Recent Analyses (7 days)</p>
+                <i class="fas fa-calendar-week fa-2x"></i>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 mb-3">
+        <div class="card stats-card hover-scale">
+            <div class="card-body text-center">
+                <h2 class="card-title">{{ stats.recent_accidents }}</h2>
+                <p class="card-text">Recent Accidents (7 days)</p>
+                <i class="fas fa-bell fa-2x"></i>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Recent Analyses -->
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-history"></i> Recent Analyses
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if recent_analyses %}
+                    {% for analysis in recent_analyses %}
+                    <div class="card mb-2 analysis-card hover-scale">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div>
+                                    <h6 class="card-title mb-1">
+                                        <a href="{{ url_for('analysis_detail', analysis_id=analysis.id) }}" 
+                                           class="text-decoration-none">
+                                            Analysis #{{ analysis.id }}
+                                        </a>
+                                    </h6>
+                                    <p class="card-text small mb-1">
+                                        <i class="fas fa-file-video"></i> {{ analysis.video_file }}
+                                    </p>
+                                    <p class="card-text small mb-1">
+                                        <i class="fas fa-film"></i> {{ analysis.total_frames }} frames
+                                    </p>
+                                    {% if analysis.accidents_detected and analysis.accidents_detected > 0 %}
+                                        <span class="badge bg-danger">
+                                            {{ analysis.accidents_detected }} accidents
+                                        </span>
+                                    {% else %}
+                                        <span class="badge bg-success">No accidents</span>
+                                    {% endif %}
+                                </div>
+                                <div class="text-end">
+                                    <small class="timestamp">{{ analysis.created_at[:19] }}</small>
+                                    <br>
+                                    <span class="badge bg-secondary">{{ analysis.status }}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <p class="text-muted">No recent analyses found.</p>
+                {% endif %}
+                <div class="text-center mt-3">
+                    <a href="{{ url_for('archive_page') }}" class="btn btn-primary">
+                        View All Analyses <i class="fas fa-arrow-right"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Accidents -->
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-exclamation-triangle"></i> Recent Accidents
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if recent_accidents %}
+                    {% for accident in recent_accidents %}
+                    <div class="card mb-2 accident-card hover-scale">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div>
+                                    <h6 class="card-title mb-1">
+                                        <a href="{{ url_for('accident_detail', accident_id=accident.id) }}" 
+                                           class="text-decoration-none">
+                                            Accident #{{ accident.id }}
+                                        </a>
+                                    </h6>
+                                    <p class="card-text small mb-1">
+                                        <i class="fas fa-file-video"></i> {{ accident.video_file }}
+                                    </p>
+                                    <p class="card-text small mb-1">
+                                        <i class="fas fa-film"></i> Frame {{ accident.frame_number }}
+                                    </p>
+                                    <span class="badge {% if accident.confidence >= 90 %}bg-success{% elif accident.confidence >= 70 %}bg-warning{% else %}bg-danger{% endif %}">
+                                        {{ accident.confidence|round(1) }}% confidence
+                                    </span>
+                                    {% if accident.license_plate_detected %}
+                                        <span class="badge bg-info ms-1">
+                                            <i class="fas fa-id-card"></i> License Plate
+                                        </span>
+                                    {% endif %}
+                                </div>
+                                <div class="text-end">
+                                    <small class="timestamp">{{ accident.timestamp[:19] }}</small>
+                                    <br>
+                                    <a href="{{ url_for('view_file', filename=accident.photo_path) }}" 
+                                       class="btn btn-sm btn-outline-primary" target="_blank">
+                                        <i class="fas fa-image"></i> View
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <p class="text-muted">No recent accidents found.</p>
+                {% endif %}
+                <div class="text-center mt-3">
+                    <a href="{{ url_for('accidents_page') }}" class="btn btn-danger">
+                        View All Accidents <i class="fas fa-arrow-right"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Quick Actions -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-bolt"></i> Quick Actions
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-3 mb-2">
+                        <a href="{{ url_for('archive_page') }}" class="btn btn-outline-primary w-100">
+                            <i class="fas fa-archive"></i> Browse Archive
+                        </a>
+                    </div>
+                    <div class="col-md-3 mb-2">
+                        <a href="{{ url_for('accidents_page') }}" class="btn btn-outline-danger w-100">
+                            <i class="fas fa-exclamation-triangle"></i> View Accidents
+                        </a>
+                    </div>
+                    <div class="col-md-3 mb-2">
+                        <a href="{{ url_for('stats_page') }}" class="btn btn-outline-info w-100">
+                            <i class="fas fa-chart-bar"></i> Statistics
+                        </a>
+                    </div>
+                    <div class="col-md-3 mb-2">
+                        <a href="{{ url_for('cleanup_archives') }}" class="btn btn-outline-warning w-100">
+                            <i class="fas fa-broom"></i> Cleanup
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

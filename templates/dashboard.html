@@ -1,0 +1,1065 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SmartResQ — AI Surveillance Command Center</title>
+    <meta name="description"
+        content="SmartResQ AI-powered accident detection and emergency response dashboard for smart cities.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="{{ url_for('static', filename='dashboard.css') }}">
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <script src="{{ url_for('static', filename='chart.min.js') }}"></script>
+</head>
+
+<body>
+    <div class="dashboard-wrapper">
+        <!-- ─── Sidebar Navigation ─── -->
+        <aside class="sidebar">
+            <a href="#" class="sidebar-logo">
+                <div class="logo-glow">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <path
+                            d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                    </svg>
+                </div>
+                <div class="logo-text">SmartResQ</div>
+            </a>
+
+            <nav class="nav-menu">
+                <div class="nav-item active" id="nav-overview" onclick="switchView('overview')">
+                    <span class="nav-icon">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="3" y="3" width="7" height="7" />
+                            <rect x="14" y="3" width="7" height="7" />
+                            <rect x="3" y="14" width="7" height="7" />
+                            <rect x="14" y="14" width="7" height="7" />
+                        </svg>
+                    </span>
+                    <span>Overview</span>
+                </div>
+                <div class="nav-item" id="nav-monitoring" onclick="switchView('monitoring')">
+                    <span class="nav-icon">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M23 7l-7 5 7 5V7z" />
+                            <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
+                        </svg>
+                    </span>
+                    <span>Monitoring</span>
+                </div>
+                <div class="nav-item" id="nav-video-analysis" onclick="switchView('video-analysis')">
+                    <span class="nav-icon">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polygon points="23 7 16 12 23 17 23 7" />
+                            <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
+                        </svg>
+                    </span>
+                    <span>Video Analysis</span>
+                </div>
+                <div class="nav-item" id="nav-archive" onclick="switchView('archive')">
+                    <span class="nav-icon">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="21 8 21 21 3 21 3 8" />
+                            <rect x="1" y="3" width="22" height="5" />
+                            <line x1="10" y1="12" x2="14" y2="12" />
+                        </svg>
+                    </span>
+                    <span>Archive</span>
+                </div>
+                <div class="nav-item" id="nav-tech" onclick="switchView('tech')">
+                    <span class="nav-icon">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="16 18 22 12 16 6" />
+                            <polyline points="8 6 2 12 8 18" />
+                        </svg>
+                    </span>
+                    <span>Tech Stack</span>
+                </div>
+                <div class="nav-item" id="nav-settings" onclick="switchView('settings')">
+                    <span class="nav-icon">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="3" />
+                            <path
+                                d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+                        </svg>
+                    </span>
+                    <span>Settings</span>
+                </div>
+            </nav>
+
+            <div class="sidebar-footer">
+                <div class="nav-item" id="nav-support" onclick="switchView('support')">
+                    <span class="nav-icon">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="10" />
+                            <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+                            <line x1="12" y1="17" x2="12.01" y2="17" />
+                        </svg>
+                    </span>
+                    <span>Support</span>
+                </div>
+            </div>
+        </aside>
+
+        <!-- ─── Main Content Area ─── -->
+        <main class="main-view">
+            <!-- Top Bar -->
+            <header class="top-nav">
+                <div class="view-title">
+                    <h2>Mission Control</h2>
+                    <div class="view-subtitle">Real-time surveillance and monitoring dashboard</div>
+                </div>
+                <div class="system-controls">
+                    <div class="live-indicator" id="statusIndicator">
+                        <div class="indicator-dot"></div>
+                        <span id="statusText">SYSTEM READY</span>
+                    </div>
+                    <div id="navInfoBadge" class="info-badge" style="display: none;">
+                        <span class="info-label">NAVIGATION</span>
+                        <span class="info-text">NAVIGATING...</span>
+                    </div>
+                    <button class="btn-premium btn-start" id="startBtn" onclick="startSystem()">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                            <polygon points="5 3 19 12 5 21 5 3" />
+                        </svg>
+                        Launch System
+                    </button>
+                    <button class="btn-premium btn-stop" id="stopBtn" onclick="stopSystem()" style="display: none;">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                            <rect x="3" y="3" width="18" height="18" rx="2" />
+                        </svg>
+                        Abort Mission
+                    </button>
+                </div>
+            </header>
+
+            <!-- View Containers -->
+            <div class="content-area">
+
+                <!-- ───────────────────── VIEW: OVERVIEW ───────────────────── -->
+                <div id="view-overview" class="dashboard-view active">
+
+                    <!-- ══════════════ HERO VIDEO SECTION ══════════════ -->
+                    <div class="hero-section">
+                        <video class="hero-video" autoplay muted loop playsinline preload="auto">
+                            <source src="{{ url_for('static', filename='hero.mp4') }}" type="video/mp4">
+                        </video>
+                        <div class="hero-overlay"></div>
+                        <div class="hero-content">
+                            <div class="hero-badge">
+                                <div class="hero-badge-dot"></div>
+                                <span>AI-Powered Smart City Surveillance</span>
+                            </div>
+                            <h1 class="hero-title">SmartResQ <span class="hero-title-accent">Command Center</span></h1>
+                            <p class="hero-subtitle">Real-time accident detection &amp; emergency response.<br>Keeping
+                                cities safer, one frame at a time.</p>
+                            <div class="hero-actions">
+                                <button class="hero-btn-primary" onclick="startSystem()">
+                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
+                                        <polygon points="5 3 19 12 5 21 5 3" />
+                                    </svg>
+                                    Launch System
+                                </button>
+                                <button class="hero-btn-secondary" onclick="switchView('video-analysis')">
+                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                        stroke-width="2.5">
+                                        <polygon points="23 7 16 12 23 17 23 7" />
+                                        <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
+                                    </svg>
+                                    Analyse Video
+                                </button>
+                            </div>
+                            <div class="hero-stats">
+                                <div class="hero-stat-item">
+                                    <div class="hero-stat-value">99.8%</div>
+                                    <div class="hero-stat-label">Detection Accuracy</div>
+                                </div>
+                                <div class="hero-stat-divider"></div>
+                                <div class="hero-stat-item">
+                                    <div class="hero-stat-value">40%</div>
+                                    <div class="hero-stat-label">Faster Response</div>
+                                </div>
+                                <div class="hero-stat-divider"></div>
+                                <div class="hero-stat-item">
+                                    <div class="hero-stat-value">24/7</div>
+                                    <div class="hero-stat-label">Live Monitoring</div>
+                                </div>
+                                <div class="hero-stat-divider"></div>
+                                <div class="hero-stat-item">
+                                    <div class="hero-stat-value">500+</div>
+                                    <div class="hero-stat-label">Zones Covered</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="hero-scroll-hint">
+                            <div class="scroll-mouse">
+                                <div class="scroll-wheel"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- The Essence of SmartResQ -->
+                    <div class="overview-essence">
+                        <div class="essence-header animate-on-scroll">
+                            <div class="essence-badge">THE MISSION</div>
+                            <h2 class="essence-title">Beating the Golden Hour.</h2>
+                            <p class="essence-subtitle">In severe accidents, the first 60 minutes are critical for
+                                survival. Traditional monitoring relies on chance and human vigilance, wasting precious
+                                minutes. <strong>SmartResQ was built to compress response times from minutes to
+                                    milliseconds</strong>, giving victims the highest possible chance of survival.</p>
+                        </div>
+
+                        <div class="timeline-container animate-on-scroll">
+                            <!-- Traditional Response -->
+                            <div class="timeline-track traditional">
+                                <div class="track-info">
+                                    <h4>Traditional Infrastructure</h4>
+                                    <span>Average Dispatch: 7-12 Minutes</span>
+                                </div>
+                                <div class="track-bar active-danger">
+                                    <div class="track-fill slow-fill"></div>
+                                    <div class="track-node node-1">
+                                        <div class="node-dot"></div>
+                                        <div class="node-label">0m<br><span>Impact</span></div>
+                                    </div>
+                                    <div class="track-node node-2">
+                                        <div class="node-dot"></div>
+                                        <div class="node-label">5m<br><span>Discovery</span></div>
+                                    </div>
+                                    <div class="track-node node-3">
+                                        <div class="node-dot"></div>
+                                        <div class="node-label">8m<br><span>Verification</span></div>
+                                    </div>
+                                    <div class="track-node node-4 fail">
+                                        <div class="node-dot"></div>
+                                        <div class="node-label">12m+<br><span>Dispatch</span></div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- SmartResQ Response -->
+                            <div class="timeline-track smartresq">
+                                <div class="track-info">
+                                    <h4 class="text-primary">SmartResQ Neural Pipeline</h4>
+                                    <span class="text-primary-light">Instant Autonomous Dispatch</span>
+                                </div>
+                                <div class="track-bar active">
+                                    <div class="track-fill"></div>
+                                    <div class="track-node node-1 active">
+                                        <div class="node-dot"></div>
+                                        <div class="node-label">0s<br><span>Impact</span></div>
+                                    </div>
+                                    <div class="track-node node-2 active">
+                                        <div class="node-dot"></div>
+                                        <div class="node-label">0.8s<br><span>AI Detect</span></div>
+                                    </div>
+                                    <div class="track-node node-3 active">
+                                        <div class="node-dot"></div>
+                                        <div class="node-label">1.5s<br><span>OCR Scan</span></div>
+                                    </div>
+                                    <div class="track-node node-4 success">
+                                        <div class="node-dot"></div>
+                                        <div class="node-label">2s<br><span>Dispatch</span></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 3-Column Ideology Grid -->
+                        <div class="ideology-grid animate-on-scroll">
+                            <!-- Problem -->
+                            <div class="ideology-card problem">
+                                <div class="ideology-icon pulse-red">
+                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                        stroke-width="2">
+                                        <path
+                                            d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z">
+                                        </path>
+                                        <line x1="12" y1="9" x2="12" y2="13"></line>
+                                        <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                                    </svg>
+                                </div>
+                                <h3>The Problem</h3>
+                                <p>Human-monitored CCTV networks are inherently delayed. In severe accidents, waiting
+                                    minutes for an operator to notice and verify a crash often costs victims their lives
+                                    during the critical "Golden Hour".</p>
+                            </div>
+
+                            <!-- Solution -->
+                            <div class="ideology-card solution">
+                                <div class="ideology-icon pulse-blue">
+                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                        stroke-width="2">
+                                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                                    </svg>
+                                </div>
+                                <h3>The Solution</h3>
+                                <p>An autonomous, vigilant system that never sleeps. We automate the entire first
+                                    response pipeline—instantly identifying crashes, extracting data, and alerting
+                                    authorities without human intervention.</p>
+                            </div>
+
+                            <!-- How We Built It -->
+                            <div class="ideology-card build">
+                                <div class="ideology-icon pulse-amber">
+                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                        stroke-width="2">
+                                        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+                                    </svg>
+                                </div>
+                                <h3>How We Built It</h3>
+                                <p>We process 60FPS video feeds using a custom-trained Convolutional Neural Network via
+                                    OpenCV. Real-time EasyOCR captures vehicle plates, and a webhook instantly
+                                    dispatches the data via the Twilio REST API.</p>
+                            </div>
+                        </div>
+                    </div>
+
+
+                    <!-- Live Stat Cards -->
+                    <div class="bento-grid">
+                        <div class="stat-card-gold stat-card-accidents">
+                            <div class="stat-header">
+                                <div class="stat-icon-wrapper">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#DC2626"
+                                        stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                        <path
+                                            d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                                        <line x1="12" y1="9" x2="12" y2="13" />
+                                        <line x1="12" y1="17" x2="12.01" y2="17" />
+                                    </svg>
+                                </div>
+                                <div class="stat-dot"></div>
+                            </div>
+                            <div class="stat-value-big" id="totalAccidents">0</div>
+                            <div class="stat-trend">Live Incidents</div>
+                        </div>
+
+                        <div class="stat-card-gold stat-card-plates">
+                            <div class="stat-header">
+                                <div class="stat-icon-wrapper">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#38BDF8"
+                                        stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M23 7l-7 5 7 5V7z" />
+                                        <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
+                                    </svg>
+                                </div>
+                            </div>
+                            <div class="stat-value-big" id="totalPlates">0</div>
+                            <div class="stat-trend">Plates Captured</div>
+                        </div>
+
+                        <div class="stat-card-gold stat-card-frames">
+                            <div class="stat-header">
+                                <div class="stat-icon-wrapper">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#16A34A"
+                                        stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+                                    </svg>
+                                </div>
+                            </div>
+                            <div class="stat-value-big" id="framesProcessed">0</div>
+                            <div class="stat-trend">Frames Scanned</div>
+                        </div>
+
+                        <div class="stat-card-gold stat-card-uptime">
+                            <div class="stat-header">
+                                <div class="stat-icon-wrapper">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9333EA"
+                                        stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                        <circle cx="12" cy="12" r="10" />
+                                        <polyline points="12 6 12 12 16 14" />
+                                    </svg>
+                                </div>
+                            </div>
+                            <div class="stat-value-big" id="uptime">00:00</div>
+                            <div class="stat-trend">Session Duration</div>
+                        </div>
+                    </div>
+
+                    <!-- Main Grid -->
+                    <div class="main-grid">
+                        <!-- Neural Feed Panel -->
+                        <div class="display-panel">
+                            <div class="panel-head">
+                                <h3>
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#38BDF8"
+                                        stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M23 7l-7 5 7 5V7z" />
+                                        <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
+                                    </svg>
+                                    Neural Surveillance Feed
+                                </h3>
+                                <button class="btn-icon" onclick="toggleFullscreen()" title="Fullscreen">
+                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                        stroke-width="2">
+                                        <path
+                                            d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3" />
+                                    </svg>
+                                </button>
+                            </div>
+                            <div class="video-viewport">
+                                <div class="feed-overlay">
+                                    <div class="rec-pulse" id="liveBadge">
+                                        <div class="rec-dot"></div>
+                                        <span>SECURE&nbsp;FEED</span>
+                                    </div>
+                                    <div id="frameTimestamp"
+                                        style="font-family:'JetBrains Mono';font-size:0.68rem;color:#94A3B8;background:rgba(255,255,255,0.08);padding:0.3rem 0.6rem;border-radius:6px;backdrop-filter:blur(4px);">
+                                    </div>
+                                </div>
+                                <div id="videoPlaceholder" class="placeholder-box">
+                                    <div class="loading-state">
+                                        <span>SYNCHRONIZING NEURAL SENSORS...</span>
+                                    </div>
+                                </div>
+                                <canvas id="videoCanvas"
+                                    style="display:none;width:100%;height:100%;object-fit:cover;"></canvas>
+                                <div class="hud-overlay">
+                                    <div class="hud-corner top-left"></div>
+                                    <div class="hud-corner top-right"></div>
+                                    <div class="hud-corner bottom-left"></div>
+                                    <div class="hud-corner bottom-right"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Recent Activity Panel -->
+                        <div class="display-panel">
+                            <div class="panel-head">
+                                <h3>
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#DC2626"
+                                        stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path
+                                            d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                                        <line x1="12" y1="9" x2="12" y2="13" />
+                                        <line x1="12" y1="17" x2="12.01" y2="17" />
+                                    </svg>
+                                    Recent Activity
+                                </h3>
+                            </div>
+                            <div class="history-feed" id="accidentsListOverview">
+                                <div class="empty-state">NO RECENT INCIDENTS</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ───────────────────── VIEW: MONITORING ───────────────────── -->
+                <div id="view-monitoring" class="dashboard-view">
+                    <div class="monitoring-layout-refined">
+                        <div class="intelligence-module">
+                            <div class="panel-head">
+                                <h3>
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2563EB"
+                                        stroke-width="2">
+                                        <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
+                                        <line x1="8" y1="21" x2="16" y2="21" />
+                                        <line x1="12" y1="17" x2="12" y2="21" />
+                                    </svg>
+                                    Primary Intelligence Console
+                                </h3>
+                                <div class="stream-badge">
+                                    <div class="pulse-dot"></div>
+                                    <span>CAM-01: LIVE FEED</span>
+                                </div>
+                            </div>
+
+                            <div class="primary-sensor-container">
+                                <div id="monitoringPlaceholder" class="placeholder-box">
+                                    <div class="loading-state">
+                                        <span>SYNCHRONIZING NEURAL SENSORS...</span>
+                                    </div>
+                                </div>
+                                <canvas id="monitoringCanvas"
+                                    style="display:none;width:100%;height:100%;object-fit:contain;"></canvas>
+
+                                <div class="hud-overlay">
+                                    <div class="hud-corner top-left"></div>
+                                    <div class="hud-corner top-right"></div>
+                                    <div class="hud-corner bottom-left"></div>
+                                    <div class="hud-corner bottom-right"></div>
+                                    <div class="hud-center-cross"></div>
+
+                                    <div class="hud-telem-top">
+                                        <div class="telem-chip">SECURED CONNECTION</div>
+                                        <div class="telem-chip" id="mon-res">1920x1080</div>
+                                    </div>
+
+                                    <div class="hud-telem-btm">
+                                        <div class="telem-chip">STREAM STABILITY: 99.9%</div>
+                                        <div class="telem-chip" id="mon-fps">60 FPS</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="monitoring-stats-col">
+                            <div class="display-panel">
+                                <div class="panel-head">
+                                    <h3>NEURAL SIGNAL</h3>
+                                </div>
+                                <div class="waveform-container" style="height:140px;">
+                                    <canvas id="monitoringWaveform"></canvas>
+                                </div>
+                            </div>
+
+                            <div class="display-panel">
+                                <div class="panel-head">
+                                    <h3>HARDWARE SYNC</h3>
+                                </div>
+                                <div class="hw-grid-compact">
+                                    <div class="hw-pill">
+                                        <span class="hw-label">AI ENGINE</span>
+                                        <span class="hw-value">84%</span>
+                                        <div class="hw-progress">
+                                            <div style="width:84%"></div>
+                                        </div>
+                                    </div>
+                                    <div class="hw-pill">
+                                        <span class="hw-label">VRAM LOAD</span>
+                                        <span class="hw-value">62%</span>
+                                        <div class="hw-progress">
+                                            <div style="width:62%;background:var(--success)"></div>
+                                        </div>
+                                    </div>
+                                    <div class="hw-pill">
+                                        <span class="hw-label">LATENCY</span>
+                                        <span class="hw-value">18ms</span>
+                                        <div class="hw-progress">
+                                            <div style="width:18%;background:var(--primary)"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ───────────────────── VIEW: VIDEO ANALYSIS ───────────────────── -->
+                <div id="view-video-analysis" class="dashboard-view">
+                    <div class="va-layout">
+
+                        <!-- LEFT: Upload + Controls -->
+                        <div class="va-left-col">
+
+                            <!-- Upload Zone -->
+                            <div class="display-panel" id="va-upload-panel">
+                                <div class="panel-head">
+                                    <h3>
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563EB"
+                                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <polygon points="23 7 16 12 23 17 23 7" />
+                                            <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
+                                        </svg>
+                                        Video Analysis Engine
+                                    </h3>
+                                    <span class="stat-badge" id="va-status-badge"
+                                        style="background:rgba(100,116,139,0.1);color:#64748b;">IDLE</span>
+                                </div>
+
+                                <div class="va-drop-zone" id="vaDropZone" ondragover="vaDragOver(event)"
+                                    ondragleave="vaDragLeave(event)" ondrop="vaDrop(event)"
+                                    onclick="document.getElementById('vaFileInput').click()">
+                                    <div class="va-drop-icon">
+                                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#93C5FD"
+                                            stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                                            <polyline points="17 8 12 3 7 8" />
+                                            <line x1="12" y1="3" x2="12" y2="15" />
+                                        </svg>
+                                    </div>
+                                    <div class="va-drop-title">Drop Video Here</div>
+                                    <div class="va-drop-sub">or click to browse &mdash; MP4, AVI, MOV, MKV, WEBM
+                                        supported</div>
+                                    <input type="file" id="vaFileInput" accept="video/*" style="display:none"
+                                        onchange="vaFileSelected(event)">
+                                </div>
+
+                                <!-- Video Info Cards -->
+                                <div class="va-info-grid" id="vaInfoGrid" style="display:none">
+                                    <div class="va-info-card">
+                                        <div class="va-info-label">FILE</div>
+                                        <div class="va-info-value" id="vaInfoName">&mdash;</div>
+                                    </div>
+                                    <div class="va-info-card">
+                                        <div class="va-info-label">DURATION</div>
+                                        <div class="va-info-value" id="vaInfoDuration">&mdash;</div>
+                                    </div>
+                                    <div class="va-info-card">
+                                        <div class="va-info-label">FRAMES</div>
+                                        <div class="va-info-value" id="vaInfoFrames">&mdash;</div>
+                                    </div>
+                                    <div class="va-info-card">
+                                        <div class="va-info-label">FPS</div>
+                                        <div class="va-info-value" id="vaInfoFps">&mdash;</div>
+                                    </div>
+                                    <div class="va-info-card">
+                                        <div class="va-info-label">RESOLUTION</div>
+                                        <div class="va-info-value" id="vaInfoRes">&mdash;</div>
+                                    </div>
+                                </div>
+
+                                <!-- Upload Progress -->
+                                <div id="vaUploadProgress" style="display:none;margin-top:1rem">
+                                    <div
+                                        style="font-size:0.72rem;color:#64748b;margin-bottom:0.4rem;font-weight:600;letter-spacing:0.5px;">
+                                        UPLOADING...</div>
+                                    <div class="va-prog-track">
+                                        <div class="va-prog-bar" id="vaUploadBar" style="width:0%"></div>
+                                    </div>
+                                </div>
+
+                                <!-- Controls -->
+                                <div class="va-controls" id="vaControls" style="display:none">
+                                    <button class="btn-premium btn-start" id="vaStartBtn" onclick="vaStartAnalysis()">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                                            <polygon points="5 3 19 12 5 21 5 3" />
+                                        </svg>
+                                        Analyse Video
+                                    </button>
+                                    <button class="btn-premium btn-stop" id="vaStopBtn" onclick="vaStopAnalysis()"
+                                        style="display:none">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                                            <rect x="3" y="3" width="18" height="18" rx="2" />
+                                        </svg>
+                                        Stop Analysis
+                                    </button>
+                                    <button class="btn-icon" id="vaResetBtn" onclick="vaReset()"
+                                        title="Upload new video">
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+                                            stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                            stroke-linejoin="round">
+                                            <polyline points="1 4 1 10 7 10" />
+                                            <path d="M3.51 15a9 9 0 1 0 .49-3.5" />
+                                        </svg>
+                                    </button>
+                                </div>
+
+                                <!-- Threshold Slider -->
+                                <div class="va-threshold-row" id="vaThresholdRow" style="display:none">
+                                    <label>DETECTION THRESHOLD</label>
+                                    <input type="range" min="50" max="100" value="99" id="vaThreshold"
+                                        class="premium-range"
+                                        oninput="document.getElementById('vaThresholdVal').textContent=this.value+'%'">
+                                    <span id="vaThresholdVal">99%</span>
+                                </div>
+                            </div>
+
+                            <!-- Analysis Progress -->
+                            <div class="display-panel" id="vaProgressPanel" style="display:none">
+                                <div class="panel-head">
+                                    <h3>
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563EB"
+                                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <line x1="22" y1="12" x2="2" y2="12" />
+                                            <path
+                                                d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" />
+                                        </svg>
+                                        Analysis Progress
+                                    </h3>
+                                    <span id="vaProgressPct"
+                                        style="font-family:'JetBrains Mono',monospace;font-size:0.95rem;font-weight:700;color:#2563EB">0%</span>
+                                </div>
+                                <div class="va-prog-track va-prog-track--lg">
+                                    <div class="va-prog-bar va-prog-bar--animated" id="vaProgressBar" style="width:0%">
+                                    </div>
+                                </div>
+                                <div class="va-progress-meta">
+                                    <span>Frames: <strong id="vaProgFrames">0</strong> / <strong
+                                            id="vaProgTotal">0</strong></span>
+                                    <span>Accidents: <strong id="vaProgAccidents"
+                                            style="color:var(--danger)">0</strong></span>
+                                    <span id="vaCurrentPred" class="stat-badge"
+                                        style="background:rgba(22,163,74,0.1);color:#16A34A">NO ACCIDENT</span>
+                                </div>
+                            </div>
+
+                        </div><!-- /va-left-col -->
+
+                        <!-- RIGHT: Video Feed + Events -->
+                        <div class="va-right-col">
+
+                            <!-- Live Frame Preview -->
+                            <div class="display-panel">
+                                <div class="panel-head">
+                                    <h3>
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563EB"
+                                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
+                                            <line x1="8" y1="21" x2="16" y2="21" />
+                                            <line x1="12" y1="17" x2="12" y2="21" />
+                                        </svg>
+                                        Live Frame Preview
+                                    </h3>
+                                    <div id="vaFeedStatus" class="rec-pulse" style="opacity:0">
+                                        <div class="rec-dot"></div>
+                                        <span>SCANNING</span>
+                                    </div>
+                                </div>
+                                <div class="video-viewport">
+                                    <div id="vaPlaceholder" class="placeholder-box">
+                                        <div class="loading-state">
+                                            <span>AWAITING VIDEO ARCHIVE...</span>
+                                        </div>
+                                    </div>
+                                    <canvas id="vaCanvas"
+                                        style="display:none;width:100%;height:100%;object-fit:cover"></canvas>
+                                </div>
+                            </div>
+
+                            <!-- Accident Timeline -->
+                            <div class="display-panel">
+                                <div class="panel-head">
+                                    <h3>
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#DC2626"
+                                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <path
+                                                d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                                        </svg>
+                                        Detected Accidents Timeline
+                                    </h3>
+                                    <span id="vaTimelineCount" class="stat-badge"
+                                        style="background:rgba(220,38,38,0.1);color:#DC2626">0</span>
+                                </div>
+                                <div class="va-timeline" id="vaTimeline">
+                                    <div class="empty-state" id="vaTimelineEmpty">NO ACCIDENTS DETECTED YET</div>
+                                </div>
+                            </div>
+
+                        </div><!-- /va-right-col -->
+                    </div>
+                </div>
+
+                <!-- ───────────────────── VIEW: ARCHIVE ───────────────────── -->
+                <div id="view-archive" class="dashboard-view">
+                    <div class="archive-container">
+                        <div class="panel-head">
+                            <h3>
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563EB"
+                                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <polyline points="21 8 21 21 3 21 3 8" />
+                                    <rect x="1" y="3" width="22" height="5" />
+                                    <line x1="10" y1="12" x2="14" y2="12" />
+                                </svg>
+                                Incident Repository
+                            </h3>
+                            <div class="search-bar">
+                                <input type="text" placeholder="Search by ID or date..." class="premium-input">
+                            </div>
+                        </div>
+                        <div class="archive-table-wrapper">
+                            <table class="premium-table">
+                                <thead>
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>TIMESTAMP</th>
+                                        <th>CATEGORY</th>
+                                        <th>CONFIDENCE</th>
+                                        <th>ACTION</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="archiveList">
+                                    <!-- Populated dynamically -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ───────────────────── VIEW: SETTINGS ───────────────────── -->
+                <div id="view-settings" class="dashboard-view">
+                    <div class="settings-page">
+                        <div class="panel-head">
+                            <h3>
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563EB"
+                                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <circle cx="12" cy="12" r="3" />
+                                    <path
+                                        d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+                                </svg>
+                                Core Calibration
+                            </h3>
+                        </div>
+
+                        <div class="settings-tabs">
+                            <div class="settings-group">
+                                <h4>Vision Parameters</h4>
+                                <div class="settings-grid-3">
+                                    <div class="input-group">
+                                        <label>INPUT SOURCE</label>
+                                        <select id="setting-source" class="premium-input">
+                                            <option value="0">Camera 01 (Integrated)</option>
+                                            <option value="1">Camera 02 (Auxiliary)</option>
+                                        </select>
+                                    </div>
+                                    <div class="input-group">
+                                        <label>DETECTION THRESHOLD</label>
+                                        <input type="range" min="50" max="100" value="99" class="premium-range">
+                                    </div>
+                                    <div class="input-group">
+                                        <label>OCR MODEL</label>
+                                        <select class="premium-input">
+                                            <option>EASY_OCR_V2</option>
+                                            <option>TESSERACT_LTS</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="settings-group">
+                                <h4>Notification Matrix</h4>
+                                <div class="toggle-list">
+                                    <div class="toggle-item">
+                                        <span>SYSTEM ALERTS (BROWSER)</span>
+                                        <label class="switch"><input type="checkbox" checked><span
+                                                class="slider"></span></label>
+                                    </div>
+                                    <div class="toggle-item">
+                                        <span>SMS GATEWAY (TWILIO)</span>
+                                        <label class="switch"><input type="checkbox"><span
+                                                class="slider"></span></label>
+                                    </div>
+                                    <div class="toggle-item">
+                                        <span>EMAIL REPORTS</span>
+                                        <label class="switch"><input type="checkbox" checked><span
+                                                class="slider"></span></label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="settings-footer">
+                            <button class="btn-premium btn-start" style="padding:0.75rem 2.5rem;"
+                                onclick="saveConfig()">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <polyline points="20 6 9 17 4 12" />
+                                </svg>
+                                Sync Changes
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ───────────────────── VIEW: SUPPORT ───────────────────── -->
+                <div id="view-support" class="dashboard-view">
+                    <div class="support-layout">
+                        <div class="support-header">
+                            <h1>How can we help?</h1>
+                            <p>Premium support for SmartResQ Enterprise deployments</p>
+                        </div>
+                        <div class="support-grid">
+                            <div class="support-card">
+                                <h3>
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2563EB"
+                                        stroke-width="2" style="margin-right:8px;vertical-align:middle">
+                                        <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
+                                        <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
+                                    </svg>
+                                    Documentation
+                                </h3>
+                                <p>Learn how to calibrate AI models and integrate custom camera sensors in your
+                                    deployment.</p>
+                                <a href="#">Explore Wiki &rarr;</a>
+                            </div>
+                            <div class="support-card">
+                                <h3>
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2563EB"
+                                        stroke-width="2" style="margin-right:8px;vertical-align:middle">
+                                        <polyline points="16 18 22 12 16 6" />
+                                        <polyline points="8 6 2 12 8 18" />
+                                    </svg>
+                                    API Reference
+                                </h3>
+                                <p>Technical documentation for neural stream hooks and real-time detection endpoints.
+                                </p>
+                                <a href="#">Read Docs &rarr;</a>
+                            </div>
+                            <div class="support-card highlighted">
+                                <h3>
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2563EB"
+                                        stroke-width="2" style="margin-right:8px;vertical-align:middle">
+                                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                                    </svg>
+                                    Live Debug
+                                </h3>
+                                <p>Connect to a system engineer in real-time for immediate technical assistance.</p>
+                                <button class="btn-premium btn-start" style="margin-top:0.5rem">Init Session</button>
+                            </div>
+                        </div>
+                        <div class="system-diagnostics">
+                            <h4>System Pulse</h4>
+                            <div class="log-viewer" id="liveLogs">
+                                <div class="log-line">[16:45:01] Neural Engine Loaded Successfully</div>
+                                <div class="log-line">[16:45:02] Socket Server Listening on Port 5000</div>
+                                <div class="log-line">[16:45:05] Camera Handshake: SUCCESS (Type: 1080p_WEB)</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ───────────────────── VIEW: TECH STACK ───────────────────── -->
+                <div id="view-tech" class="dashboard-view">
+                    <div class="tech-stack-container">
+                        <div class="tech-header">
+                            <div class="tech-header-glow"></div>
+                            <h2>Neural Engine & Systems</h2>
+                            <p>Exposing the high-performance architecture powering SmartResQ.</p>
+                        </div>
+
+                        <div class="tech-grid">
+                            <!-- AI CORE -->
+                            <div class="tech-card premium">
+                                <div class="tech-icon-box">
+                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                        stroke-width="2">
+                                        <path
+                                            d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8z" />
+                                        <circle cx="12" cy="12" r="3" />
+                                    </svg>
+                                </div>
+                                <h3>Intelligence Core</h3>
+                                <div class="tech-tags">
+                                    <span>Python</span>
+                                    <span>TensorFlow</span>
+                                    <span>Keras</span>
+                                </div>
+                                <p>Deep Learning model trained on 10,000+ accident scenarios using custom CNN
+                                    architectures for real-time temporal analysis.</p>
+                                <div class="tech-status-chip">NEURAL READY</div>
+                            </div>
+
+                            <!-- COMPUTER VISION -->
+                            <div class="tech-card">
+                                <div class="tech-icon-box blue">
+                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                        stroke-width="2">
+                                        <path
+                                            d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                                        <circle cx="12" cy="13" r="4" />
+                                    </svg>
+                                </div>
+                                <h3>Vision Processing</h3>
+                                <div class="tech-tags">
+                                    <span>OpenCV</span>
+                                    <span>OCR Neural</span>
+                                    <span>NLP</span>
+                                </div>
+                                <p>Advanced computer vision for license plate extraction (EasyOCR) and high-speed frame
+                                    processing at 60 FPS.</p>
+                            </div>
+
+                            <!-- REAL TIME INFRA -->
+                            <div class="tech-card">
+                                <div class="tech-icon-box gold">
+                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                        stroke-width="2">
+                                        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+                                    </svg>
+                                </div>
+                                <h3>Telemetry Stream</h3>
+                                <div class="tech-tags">
+                                    <span>Flask</span>
+                                    <span>Socket.io</span>
+                                    <span>Eventlet</span>
+                                </div>
+                                <p>Ultra-low latency WebSocket pipeline for bi-directional communication between the
+                                    neural engine and this dashboard.</p>
+                            </div>
+
+                            <!-- EMERGENCY INTEGRATION -->
+                            <div class="tech-card danger">
+                                <div class="tech-icon-box red">
+                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                        stroke-width="2">
+                                        <path
+                                            d="M15.05 5A5 5 0 0 1 19 8.95M15.05 1A9 9 0 0 1 23 8.94m-1 7.98v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
+                                    </svg>
+                                </div>
+                                <h3>Crisis Protocol</h3>
+                                <div class="tech-tags">
+                                    <span>Twilio API</span>
+                                    <span>REST</span>
+                                </div>
+                                <p>Automated TwiML-based dispatch system that handles instantaneous emergency calls and
+                                    SMS notifications.</p>
+                            </div>
+                        </div>
+
+                        <!-- Technical Diagram Section -->
+                        <div class="tech-footer-panel">
+                            <div class="panel-head">
+                                <h3>Neural Pipeline Visualizer</h3>
+                            </div>
+                            <div class="pipeline-flow">
+                                <div class="flow-step">
+                                    <div class="step-num">01</div>
+                                    <div class="step-label">Sensor Input (RTSP/USB)</div>
+                                </div>
+                                <div class="flow-arrow">&rarr;</div>
+                                <div class="flow-step">
+                                    <div class="step-num">02</div>
+                                    <div class="step-label">CV2 Frame Processing</div>
+                                </div>
+                                <div class="flow-arrow">&rarr;</div>
+                                <div class="flow-step active">
+                                    <div class="step-num">03</div>
+                                    <div class="step-label">AI Inference (CNN)</div>
+                                </div>
+                                <div class="flow-arrow">&rarr;</div>
+                                <div class="flow-step">
+                                    <div class="step-num">04</div>
+                                    <div class="step-label">Telemetry Export</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div><!-- /content-area -->
+        </main>
+    </div>
+
+    <!-- Archive Report Modal -->
+    <div id="archiveModal" class="modal-overlay" style="display:none">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-title-group">
+                    <h2 id="modalTitle">Analysis Report</h2>
+                    <div id="modalSubtitle" class="view-subtitle">Session Details</div>
+                </div>
+                <button class="btn-icon" onclick="closeArchiveModal()">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body" id="modalBody">
+                <!-- Data will be injected here -->
+                <div class="report-loading">
+                    <div class="pulse-ring"></div>
+                    <span>RETRIVIEING NEURAL DATA...</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notifications -->
+    <div class="notification-area" id="notificationContainer"></div>
+
+    <script src="{{ url_for('static', filename='dashboard.js') }}"></script>
+</body>
+
+</html>
