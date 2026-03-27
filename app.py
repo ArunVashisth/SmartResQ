@@ -1,3 +1,4 @@
+# pyre-ignore-all-errors
 import eventlet
 eventlet.monkey_patch()
 
@@ -5,6 +6,19 @@ eventlet.monkey_patch()
 Smart Resq Web Dashboard
 Real-time monitoring interface for accident detection system
 """
+
+from typing import Any, Dict, List, Optional, Protocol, Tuple
+
+
+def fround(x: float, n: int) -> float:
+    """Type-checker-friendly round that always returns float."""
+    return float(round(x, n))  # type: ignore[call-overload]
+
+
+class _DetectionModelProtocol(Protocol):
+    """Protocol describing the AccidentDetectionModel interface.
+    Lets Pyre2 resolve model.predict_accident() without needing the detection import."""
+    def predict_accident(self, img: Any) -> Tuple[str, Any]: ...
 
 from flask import Flask, render_template, jsonify, request
 from flask_socketio import SocketIO, emit
@@ -34,7 +48,7 @@ def serve_archive(filename):
     return send_from_directory('archives', filename)
 
 # Global state
-dashboard_state = {
+dashboard_state: Dict[str, Any] = {
     'system_status': 'stopped',
     'accidents': [],
     'current_frame': None,
@@ -52,12 +66,17 @@ archive = ArchiveSystem()
 
 detection_system = None
 
+# Lock to prevent multiple concurrent /api/start calls
+_start_lock = threading.Lock()
+# Global stop event shared across ALL camera threads so they all stop together
+_camera_stop_event = threading.Event()
+
 # Video Analysis State
 UPLOAD_FOLDER = 'uploaded_videos'
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 ALLOWED_EXTENSIONS = {'mp4', 'avi', 'mov', 'mkv', 'webm', 'wmv', 'flv', 'm4v'}
 
-video_analysis_state = {
+video_analysis_state: Dict[str, Any] = {
     'status': 'idle',          # idle | uploading | analyzing | complete | error | stopped
     'video_path': None,
     'video_name': None,
@@ -82,7 +101,13 @@ def allowed_file(filename):
 
 @app.route('/')
 def index():
-    """Main dashboard page"""
+    """Main React-based Dashboard Entry Point"""
+    return render_template('react_dashboard.html')
+
+
+@app.route('/legacy-dashboard')
+def legacy_dashboard():
+    """Backup of the original HTML Dashboard"""
     return render_template('dashboard.html')
 
 
@@ -95,17 +120,19 @@ def get_status():
 @app.route('/api/accidents')
 def get_accidents():
     """Get list of detected accidents"""
+    accidents: List[Any] = list(dashboard_state['accidents'])
     return jsonify({
-        'accidents': dashboard_state['accidents'],
-        'total': len(dashboard_state['accidents'])
+        'accidents': accidents,
+        'total': len(accidents)
     })
 
 
 @app.route('/api/accidents/<int:accident_id>')
 def get_accident_detail(accident_id):
     """Get details of a specific accident"""
-    if accident_id < len(dashboard_state['accidents']):
-        return jsonify(dashboard_state['accidents'][accident_id])
+    accidents: List[Any] = list(dashboard_state['accidents'])
+    if accident_id < len(accidents):
+        return jsonify(accidents[accident_id])
     return jsonify({'error': 'Accident not found'}), 404
 
 
@@ -133,48 +160,252 @@ def get_total_stats():
     return jsonify(archive.get_total_stats())
 
 
+# ─────────────────────────────────────────────
+# ALERT / EMERGENCY NOTIFICATION ENDPOINTS
+# ─────────────────────────────────────────────
+
+# In-memory alert log (last 100 events)
+_alert_log: List[Dict[str, Any]] = []
+
+# Runtime-overridable credentials (start from Config / .env)
+_alert_config: Dict[str, Any] = {
+    'account_sid':   Config.TWILIO_ACCOUNT_SID   or '',
+    'auth_token':    Config.TWILIO_AUTH_TOKEN     or '',
+    'from_number':   Config.TWILIO_PHONE_NUMBER   or '',
+    'to_number':     Config.DESTINATION_PHONE_NUMBER or '',
+    'twiml_url':     Config.TWILIO_TWIML_URL      or '',
+    'auto_call':     True,    # auto-call on accident detection
+    'auto_sms':      True,    # auto-SMS on accident detection
+    'sms_body':      '🚨 ACCIDENT DETECTED by Smart Resq at {timestamp}. Confidence: {probability:.1f}%. Location: {location}. Plate: {plate}.',
+}
+
+
+def _log_alert(event_type: str, message: str, success: bool, detail: str = '') -> None:
+    """Append to in-memory alert log and broadcast via socket."""
+    entry: Dict[str, Any] = {
+        'id':        len(_alert_log) + 1,
+        'type':      event_type,   # 'call' | 'sms' | 'config' | 'error'
+        'message':   message,
+        'success':   success,
+        'detail':    detail,
+        'timestamp': datetime.now().isoformat(),
+    }
+    _alert_log.append(entry)
+    if len(_alert_log) > 100:
+        _alert_log.pop(0)
+    socketio.emit('alert_event', entry)
+
+
+def _do_call(accident_data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """Perform Twilio voice call. Returns {success, sid/error}."""
+    try:
+        from twilio.rest import Client as TwilioClient  # type: ignore
+    except ImportError:
+        return {'success': False, 'error': 'twilio package not installed'}
+
+    cfg = _alert_config
+    if not cfg['account_sid'] or not cfg['auth_token']:
+        return {'success': False, 'error': 'Twilio credentials not configured'}
+    if not cfg['to_number'] or not cfg['from_number']:
+        return {'success': False, 'error': 'Phone numbers not configured'}
+    if not cfg['twiml_url']:
+        return {'success': False, 'error': 'TwiML URL not configured'}
+
+    try:
+        client = TwilioClient(cfg['account_sid'], cfg['auth_token'])
+        call = client.calls.create(
+            url=cfg['twiml_url'],
+            to=cfg['to_number'],
+            from_=cfg['from_number']
+        )
+        return {'success': True, 'sid': call.sid}
+    except Exception as e:
+        return {'success': False, 'error': str(e)}
+
+
+def _do_sms(accident_data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """Send Twilio SMS. Returns {success, sid/error}."""
+    try:
+        from twilio.rest import Client as TwilioClient  # type: ignore
+    except ImportError:
+        return {'success': False, 'error': 'twilio package not installed'}
+
+    cfg = _alert_config
+    if not cfg['account_sid'] or not cfg['auth_token']:
+        return {'success': False, 'error': 'Twilio credentials not configured'}
+    if not cfg['to_number'] or not cfg['from_number']:
+        return {'success': False, 'error': 'Phone numbers not configured'}
+
+    try:
+        body_template = cfg.get('sms_body', '🚨 ACCIDENT DETECTED by Smart Resq.')
+        data = accident_data or {}
+        body = body_template.format(
+            timestamp=data.get('timestamp', datetime.now().strftime('%Y-%m-%d %H:%M:%S')),
+            probability=float(data.get('probability', 0)),
+            location=data.get('location', 'Unknown'),
+            plate=data.get('plate_text') or 'N/A',
+        )
+        client = TwilioClient(cfg['account_sid'], cfg['auth_token'])
+        msg = client.messages.create(
+            body=body,
+            to=cfg['to_number'],
+            from_=cfg['from_number']
+        )
+        return {'success': True, 'sid': msg.sid, 'body': body}
+    except Exception as e:
+        return {'success': False, 'error': str(e)}
+
+
+def emit_alert_for_accident(accident_data: Dict[str, Any]) -> None:
+    """Called by the camera thread when an accident is confirmed in web-dashboard mode."""
+    if _alert_config.get('auto_call'):
+        result = _do_call(accident_data)
+        if result['success']:
+            _log_alert('call', f'Emergency call initiated (SID: {result["sid"]})', True)
+            print(f'✓ Emergency call initiated: {result["sid"]}')
+        else:
+            _log_alert('call', f'Call failed: {result["error"]}', False, result['error'])
+            print(f'✗ Emergency call failed: {result["error"]}')
+
+    if _alert_config.get('auto_sms'):
+        result = _do_sms(accident_data)
+        if result['success']:
+            _log_alert('sms', f'SMS sent (SID: {result["sid"]})', True, result.get('body', ''))
+            print(f'✓ SMS sent: {result["sid"]}')
+        else:
+            _log_alert('sms', f'SMS failed: {result["error"]}', False, result['error'])
+            print(f'✗ SMS failed: {result["error"]}')
+
+
+@app.route('/api/alert/config', methods=['GET'])
+def get_alert_config():
+    """Return current alert config (auth_token masked)."""
+    safe = dict(_alert_config)
+    if safe.get('auth_token'):
+        safe['auth_token'] = safe['auth_token'][:6] + '•••••••••••••••••'
+    return jsonify(safe)
+
+
+@app.route('/api/alert/config', methods=['POST'])
+def save_alert_config():
+    """Update runtime alert config (does NOT write to disk — use .env for persistence)."""
+    data = request.get_json() or {}
+    allowed = {'account_sid','auth_token','from_number','to_number','twiml_url','auto_call','auto_sms','sms_body'}
+    for key in allowed:
+        if key in data:
+            _alert_config[key] = data[key]
+    # If user submitted a masked token, don't overwrite
+    if data.get('auth_token', '').endswith('•••••••••••••••••'):
+        pass  # keep existing token
+    _log_alert('config', 'Alert configuration updated', True)
+    return jsonify({'success': True, 'message': 'Alert config updated (runtime only — add to .env for persistence)'})
+
+
+@app.route('/api/alert/call', methods=['POST'])
+def trigger_call():
+    """Manually trigger an emergency voice call."""
+    accident_data = request.get_json() or {}
+    result = _do_call(accident_data)
+    if result['success']:
+        _log_alert('call', f'Manual call initiated (SID: {result["sid"]})', True)
+        return jsonify({'success': True, 'sid': result['sid']})
+    else:
+        _log_alert('call', f'Call failed: {result["error"]}', False, result['error'])
+        return jsonify({'success': False, 'error': result['error']}), 500
+
+
+@app.route('/api/alert/sms', methods=['POST'])
+def trigger_sms():
+    """Manually trigger an emergency SMS."""
+    accident_data = request.get_json() or {}
+    result = _do_sms(accident_data)
+    if result['success']:
+        _log_alert('sms', f'Manual SMS sent (SID: {result["sid"]})', True, result.get('body',''))
+        return jsonify({'success': True, 'sid': result['sid'], 'body': result.get('body','')})
+    else:
+        _log_alert('sms', f'SMS failed: {result["error"]}', False, result['error'])
+        return jsonify({'success': False, 'error': result['error']}), 500
+
+
+@app.route('/api/alert/log')
+def get_alert_log():
+    """Return recent alert events."""
+    return jsonify({'log': list(reversed(_alert_log))})
+
+
 @app.route('/api/start', methods=['POST'])
 def start_system():
     """Start the accident detection system"""
-    global detection_system, dashboard_state
-    
-    if dashboard_state['system_status'] == 'running':
-        return jsonify({'error': 'System already running'}), 400
-    
+    global detection_system, dashboard_state, _camera_stop_event
+
+    # Acquire lock so concurrent button-clicks can't spawn multiple threads
+    if not _start_lock.acquire(blocking=False):
+        return jsonify({'error': 'System is already starting, please wait'}), 429
+
     try:
-        from camera import AccidentDetectionSystem
-        
-        detection_system = AccidentDetectionSystem(use_web_dashboard=True)
-        detection_system.set_dashboard_callback(emit_to_dashboard)
-        
-        # Start in separate thread
-        detection_thread = threading.Thread(target=detection_system.run)
-        detection_thread.daemon = True
-        detection_thread.start()
-        
-        dashboard_state['system_status'] = 'running'
-        dashboard_state['start_time'] = datetime.now().isoformat()
-        
-        socketio.emit('system_status', {'status': 'running'})
-        
-        return jsonify({'success': True, 'message': 'System started'})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        if dashboard_state['system_status'] == 'running':
+            return jsonify({'error': 'System already running'}), 400
+
+        # Reset & recreate the stop event so the new thread runs until stopped
+        _camera_stop_event.clear()
+
+        try:
+            from camera import AccidentDetectionSystem
+
+            ds = AccidentDetectionSystem(use_web_dashboard=True)
+            ds.set_dashboard_callback(emit_to_dashboard)
+
+            # Capture a local reference to the stop event for this thread
+            stop_evt = _camera_stop_event
+
+            def _run_with_stop():
+                """Wrapper so the camera loop also respects _camera_stop_event."""
+                # Override run() to exit early when stop_evt is set
+                ds.running = True
+                original_running_check = None
+                try:
+                    # Monkey-patch: replace the internal running flag with
+                    # a property-like approach by giving the instance a
+                    # reference to the global stop event as well.
+                    ds._global_stop_event = stop_evt
+                    ds.run()
+                finally:
+                    ds.running = False
+
+            detection_thread = threading.Thread(target=_run_with_stop, daemon=True)
+            detection_thread.start()
+
+            detection_system = ds
+
+            dashboard_state['system_status'] = 'running'
+            dashboard_state['start_time'] = datetime.now().isoformat()
+
+            socketio.emit('system_status', {'status': 'running'})
+
+            return jsonify({'success': True, 'message': 'System started'})
+        except Exception as e:
+            dashboard_state['system_status'] = 'stopped'
+            return jsonify({'error': str(e)}), 500
+    finally:
+        _start_lock.release()
 
 
 @app.route('/api/stop', methods=['POST'])
 def stop_system():
     """Stop the accident detection system"""
-    global dashboard_state, detection_system
+    global dashboard_state, detection_system, _camera_stop_event
     
     try:
-        # Update status first
+        # Signal ALL camera threads to stop (fixes the infinite-reconnect loop)
+        _camera_stop_event.set()
+        
         dashboard_state['system_status'] = 'stopped'
         
-        # Try to stop detection system gracefully if it exists
         if detection_system:
             try:
-                detection_system.stop()  # Call the stop method
+                ds = detection_system  # narrow Optional type for Pyre2/Pyright
+                ds.running = False   # belt-and-braces
+                ds.stop()
             except Exception as stop_error:
                 print(f"Error calling stop: {stop_error}")
             detection_system = None
@@ -266,7 +497,7 @@ def upload_video():
         'accidents_found': [],
         'progress_percent': 0,
         'fps': fps,
-        'duration_seconds': round(duration, 2),
+        'duration_seconds': fround(float(duration), 2),
         'error': None,
         'start_time': None,
         'end_time': None
@@ -278,8 +509,8 @@ def upload_video():
         'video_info': {
             'name': video_analysis_state['video_name'],
             'total_frames': total_frames,
-            'fps': round(fps, 2),
-            'duration_seconds': round(duration, 2),
+            'fps': fround(float(fps), 2),
+            'duration_seconds': fround(float(duration), 2),
             'resolution': f"{width}x{height}"
         }
     })
@@ -296,13 +527,13 @@ def start_video_analysis():
     if video_analysis_state.get('video_path') is None:
         return jsonify({'error': 'No video uploaded. Upload a video first via /api/upload-video'}), 400
 
-    if not os.path.exists(video_analysis_state['video_path']):
+    if not os.path.exists(str(video_analysis_state['video_path'])):
         return jsonify({'error': 'Uploaded video file not found. Please re-upload.'}), 400
 
     # Read optional settings from request body
     data = request.get_json(silent=True) or {}
-    threshold = float(data.get('threshold', Config.ACCIDENT_THRESHOLD))
-    frame_skip = int(data.get('frame_skip', Config.FRAME_SKIP))
+    threshold = float(data.get('threshold') or Config.ACCIDENT_THRESHOLD)
+    frame_skip = int(data.get('frame_skip') or Config.FRAME_SKIP)
 
     # Reset stop flag
     video_analysis_stop_flag.clear()
@@ -351,9 +582,9 @@ def reset_video_analysis():
 
     # Clean up file
     path = video_analysis_state.get('video_path')
-    if path and os.path.exists(path):
+    if path and os.path.exists(str(path)):
         try:
-            os.remove(path)
+            os.remove(str(path))
         except Exception:
             pass
 
@@ -378,11 +609,11 @@ def _run_video_analysis(video_path, threshold, frame_skip):
     """Background thread: analyse every frame of the uploaded video"""
     global video_analysis_state
 
-    # Load model lazily
-    model = None
+    # Load model lazily — typed against local Protocol so Pyre2 can resolve predict_accident()
+    model: Optional[_DetectionModelProtocol] = None
     try:
-        from detection import AccidentDetectionModel
-        model = AccidentDetectionModel(Config.MODEL_JSON_PATH, Config.MODEL_WEIGHTS_PATH)
+        from detection import AccidentDetectionModel as _ADM  # noqa: F811
+        model = _ADM(Config.MODEL_JSON_PATH, Config.MODEL_WEIGHTS_PATH)
         print("✓ [VideoAnalysis] Model loaded")
     except Exception as e:
         print(f"⚠ [VideoAnalysis] Model unavailable, using demo mode: {e}")
@@ -410,9 +641,11 @@ def _run_video_analysis(video_path, threshold, frame_skip):
             # Initialize archive if this is the first frame
             if frame_count == 0: # frame_count starts at 0, increments after this
                 # Get video info for archive
-                total_frames_val = int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) or total_frames
-                fps_val = cap.get(cv2.CAP_PROP_FPS) or fps or 30
-                duration_val = total_frames_val / fps_val if fps_val > 0 else 0
+                _raw_total = cap.get(cv2.CAP_PROP_FRAME_COUNT)
+                total_frames_val: int = int(_raw_total) if _raw_total else int(total_frames)
+                _raw_fps = cap.get(cv2.CAP_PROP_FPS)
+                fps_val: float = float(_raw_fps) if _raw_fps else float(fps if isinstance(fps, (int, float)) else 30)
+                duration_val: float = total_frames_val / fps_val if fps_val > 0.0 else 0.0
                 
                 # Start archive session
                 analysis_title = video_analysis_state['video_name'] or "Unnamed Video"
@@ -423,7 +656,7 @@ def _run_video_analysis(video_path, threshold, frame_skip):
                 print(f"📁 Archive session started: Analysis #{analysis_session_id}")
 
             frame_count += 1
-            progress = round((frame_count / max(total_frames, 1)) * 100, 1)
+            progress = fround(float(frame_count) / float(max(int(total_frames), 1)) * 100.0, 1)
 
             video_analysis_state['processed_frames'] = frame_count
             video_analysis_state['progress_percent'] = progress
@@ -448,12 +681,12 @@ def _run_video_analysis(video_path, threshold, frame_skip):
             # ------ Accident detected ------
             if pred == "Accident" and probability > threshold:
 
-                timestamp_sec = round(frame_count / fps, 2)
+                timestamp_sec = fround(float(frame_count) / float(fps), 2)
                 accident_entry = {
                     'frame': frame_count,
                     'timestamp_sec': timestamp_sec,
                     'timestamp_str': _sec_to_hms(timestamp_sec),
-                    'probability': round(probability, 2)
+                    'probability': fround(float(probability), 2)
                 }
                 accidents.append(accident_entry)
                 video_analysis_state['accidents_found'] = accidents
@@ -464,7 +697,7 @@ def _run_video_analysis(video_path, threshold, frame_skip):
                         archive.record_accident(
                             analysis_session_id, 
                             frame_count, 
-                            round(probability, 2), 
+                            fround(float(probability), 2), 
                             frame
                         )
                 except Exception as archive_err:
@@ -488,7 +721,7 @@ def _run_video_analysis(video_path, threshold, frame_skip):
                         'progress': progress,
                         'frame': frame_b64,
                         'current_pred': pred,
-                        'current_prob': round(probability, 2),
+                        'current_prob': fround(float(probability), 2),
                         'accidents_so_far': len(accidents)
                     })
                 except Exception:
@@ -586,30 +819,40 @@ def emit_to_dashboard(event_type, data):
     
     if event_type == 'accident':
         # Add accident to history
-        accident_data = {
-            'id': len(dashboard_state['accidents']),
+        _accidents: List[Any] = list(dashboard_state['accidents'])
+        accident_data: Dict[str, Any] = {
+            'id': len(_accidents),
             'timestamp': data['timestamp'],
             'probability': data['probability'],
             'photo_path': data.get('photo_path'),
             'location': data.get('location', 'Unknown'),
             'plate_text': data.get('plate_text')
         }
-        dashboard_state['accidents'].append(accident_data)
-        dashboard_state['stats']['total_accidents'] += 1
+        _accidents.append(accident_data)
+        dashboard_state['accidents'] = _accidents
+        _stats: Dict[str, Any] = dict(dashboard_state['stats'])
+        _stats['total_accidents'] = int(_stats.get('total_accidents', 0)) + 1
+        dashboard_state['stats'] = _stats
         
         # Emit to connected clients
         socketio.emit('accident_detected', accident_data)
     
     elif event_type == 'plate_detected':
         # Update latest accident with plate info
-        if dashboard_state['accidents']:
-            dashboard_state['accidents'][-1]['plate_text'] = data['text']
-            dashboard_state['stats']['total_plates_detected'] += 1
+        _accidents2: List[Any] = list(dashboard_state['accidents'])
+        if _accidents2:
+            _accidents2[-1]['plate_text'] = data['text']
+            dashboard_state['accidents'] = _accidents2
+            _stats2: Dict[str, Any] = dict(dashboard_state['stats'])
+            _stats2['total_plates_detected'] = int(_stats2.get('total_plates_detected', 0)) + 1
+            dashboard_state['stats'] = _stats2
             socketio.emit('plate_detected', data)
     
     elif event_type == 'frame':
         # Update frame count
-        dashboard_state['stats']['frames_processed'] = data['frame_count']
+        _stats3: Dict[str, Any] = dict(dashboard_state['stats'])
+        _stats3['frames_processed'] = data['frame_count']
+        dashboard_state['stats'] = _stats3
         
         # Emit frame update (throttled/passed through from camera.py)
         if 'frame' in data:

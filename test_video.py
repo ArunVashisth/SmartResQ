@@ -14,6 +14,12 @@ import numpy as np
 import os
 import json
 import time
+from typing import Any, Dict, List
+
+
+def fround(x: float, n: int) -> float:
+    """Type-checker-friendly round that always returns float."""
+    return float(round(x, n))  # type: ignore[call-overload]
 
 def sec_to_hms(seconds):
     h = int(seconds // 3600)
@@ -88,7 +94,7 @@ def analyse_video(video_path, threshold, frame_skip, use_demo=False):
                 accidents.append({
                     "frame":      frame_count,
                     "timestamp":  ts,
-                    "confidence": round(confidence, 2)
+                    "confidence": fround(float(confidence), 2)
                 })
                 print(f"  🚨  ACCIDENT  frame={frame_count:>6}  time={ts}  conf={confidence:.1f}%")
 
@@ -103,17 +109,18 @@ def analyse_video(video_path, threshold, frame_skip, use_demo=False):
     finally:
         cap.release()
 
-    return {
+    result: Dict[str, Any] = {
         "video":        video_path,
         "total_frames": frame_count,
-        "fps":          round(fps, 2),
-        "duration":     round(duration, 2),
+        "fps":          fround(float(fps), 2),
+        "duration":     fround(float(duration), 2),
         "resolution":   f"{width}x{height}",
         "threshold":    threshold,
         "frame_skip":   frame_skip,
         "accidents":    accidents,
-        "elapsed_sec":  round(time.time() - start_time, 2)
+        "elapsed_sec":  fround(float(time.time() - start_time), 2)
     }
+    return result
 
 
 def main():
@@ -153,16 +160,19 @@ def main():
     print("\n" + "═" * 60)
     print("📊  ANALYSIS COMPLETE")
     print("═" * 60)
-    print(f"  Video       : {os.path.basename(result['video'])}")
-    print(f"  Frames      : {result['total_frames']}")
-    print(f"  Duration    : {result['duration']}s")
-    print(f"  Elapsed     : {result['elapsed_sec']}s")
-    print(f"  🚨 Accidents: {len(result['accidents'])}")
+    result_data: Dict[str, Any] = dict(result)
+    accidents_list: List[Any] = list(result_data.get('accidents', []))
+    print(f"  Video       : {os.path.basename(str(result_data['video']))}")
+    print(f"  Frames      : {result_data['total_frames']}")
+    print(f"  Duration    : {result_data['duration']}s")
+    print(f"  Elapsed     : {result_data['elapsed_sec']}s")
+    print(f"  🚨 Accidents: {len(accidents_list)}")
 
-    if result["accidents"]:
+    if accidents_list:
         print("\n  Detected accident timestamps:")
-        for acc in result["accidents"]:
-            print(f"    • {acc['timestamp']}  (frame {acc['frame']}, {acc['confidence']}%)")
+        for acc in accidents_list:
+            acc_dict: Dict[str, Any] = dict(acc)
+            print(f"    • {acc_dict['timestamp']}  (frame {acc_dict['frame']}, {acc_dict['confidence']}%)")
     else:
         print("\n  ✅  No accidents detected above threshold.")
 

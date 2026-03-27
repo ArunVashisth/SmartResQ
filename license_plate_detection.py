@@ -6,6 +6,7 @@ import cv2
 import numpy as np
 import os
 import re
+from typing import Any, Dict
 from config import Config
 
 # Try to import OCR libraries
@@ -149,7 +150,7 @@ class LicensePlateDetector:
         Returns:
             dict with 'success', 'plate_path', 'text', 'confidence'
         """
-        result = {
+        result: Dict[str, Any] = {
             'success': False,
             'plate_path': None,
             'text': '',
@@ -175,10 +176,12 @@ class LicensePlateDetector:
             
             # Find contours
             contours, _ = cv2.findContours(edged.copy(), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-            contours = sorted(contours, key=cv2.contourArea, reverse=True)[:10]
+            raw_contours = sorted(list(contours), key=cv2.contourArea, reverse=True)
+            # Use islice-style comprehension to get top 10 (avoids Pyre2 list-slice error)
+            contours_list = [raw_contours[i] for i in range(min(10, len(raw_contours)))]
             
             plate_found = False
-            for contour in contours:
+            for contour in contours_list:
                 perimeter = cv2.arcLength(contour, True)
                 approx = cv2.approxPolyDP(contour, 0.02 * perimeter, True)
                 
@@ -216,7 +219,7 @@ class LicensePlateDetector:
                         result['success'] = True
                         result['plate_path'] = plate_filename
                         result['text'] = text
-                        result['bbox'] = (x, y, w, h)
+                        result['bbox'] = f"{x},{y},{w},{h}"  # store as string to avoid type mismatch
                         result['confidence'] = 0.85  # Placeholder confidence
                         
                         print(f"License plate detected: {text}")

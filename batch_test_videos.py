@@ -15,6 +15,12 @@ import os
 import json
 import time
 import random
+from typing import Any, Dict, List
+
+
+def fround(x: float, n: int) -> float:
+    """Type-checker-friendly round that always returns float."""
+    return float(round(x, n))  # type: ignore[call-overload]
 
 
 def sec_to_hms(seconds):
@@ -62,7 +68,7 @@ def analyse_single(cap, fps, total_frames, model, threshold, frame_skip):
             accidents.append({
                 "frame": frame_count,
                 "timestamp": ts,
-                "confidence": round(confidence, 2)
+                "confidence": fround(float(confidence), 2)
             })
 
         if frame_count % 300 == 0:
@@ -94,7 +100,7 @@ def main():
         except Exception as e:
             print(f"⚠  Demo mode: {e}\n")
 
-    batch_results = []
+    batch_results: List[Dict[str, Any]] = []
     grand_start   = time.time()
 
     print("=" * 65)
@@ -120,7 +126,7 @@ def main():
         frame_count, accidents = analyse_single(
             cap, fps, total, model, args.threshold, args.frame_skip)
         cap.release()
-        elapsed = round(time.time() - t0, 2)
+        elapsed = fround(time.time() - t0, 2)
 
         status = "🚨" if accidents else "✅"
         print(f"     {status} {len(accidents)} accident(s) in {frame_count} frames  "
@@ -134,8 +140,8 @@ def main():
         batch_results.append({
             "video":        path,
             "total_frames": frame_count,
-            "fps":          round(fps, 2),
-            "duration":     round(total / fps, 2),
+            "fps":          fround(float(fps), 2),
+            "duration":     fround(float(total) / float(fps), 2),
             "resolution":   f"{w}x{h}",
             "accidents":    len(accidents),
             "accident_details": accidents,
@@ -148,7 +154,7 @@ def main():
     print("═" * 65)
     total_vids   = len(batch_results)
     total_acc    = sum(r.get("accidents", 0) for r in batch_results)
-    total_time   = round(time.time() - grand_start, 2)
+    total_time   = fround(time.time() - grand_start, 2)
     print(f"  Videos analysed  : {total_vids}")
     print(f"  Total accidents  : {total_acc}")
     print(f"  Total time       : {total_time}s")

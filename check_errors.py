@@ -123,7 +123,7 @@ def check_dependencies():
     # Check required
     for module, package in required.items():
         try:
-            __import__(module)
+            importlib.import_module(module)
             print_success(f"{package} installed")
         except ImportError:
             print_error(f"{package} NOT installed")
@@ -132,7 +132,7 @@ def check_dependencies():
     # Check optional
     for module, package in optional.items():
         try:
-            __import__(module)
+            importlib.import_module(module)
             print_success(f"{package} installed (optional)")
         except ImportError:
             print_warning(f"{package} NOT installed (optional)")
@@ -243,7 +243,7 @@ def check_imports():
     errors = []
     for module_name, desc in modules_to_test:
         try:
-            __import__(module_name)
+            importlib.import_module(module_name)
             print_success(f"{desc}: OK")
         except Exception as e:
             if 'tensorflow' in str(e).lower() and module_name == 'detection':

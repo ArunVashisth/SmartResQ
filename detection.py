@@ -126,10 +126,10 @@ class AccidentDetectionModel:
 
     def __init__(self, model_json_file: str, model_weights_file: str):
         self._tf_model   = None
-        self._cv_model   = None
+        self._cv_model: _CVFallbackDetector | None = None
         self._use_tf     = False
 
-        if TENSORFLOW_AVAILABLE:
+        if TENSORFLOW_AVAILABLE and model_from_json is not None:
             try:
                 with open(model_json_file, "r") as f:
                     self._tf_model = model_from_json(f.read())
@@ -142,7 +142,7 @@ class AccidentDetectionModel:
 
         if not self._use_tf:
             self._cv_model = _CVFallbackDetector()
-            print("✓ OpenCV fallback detector active (no TensorFlow required).")
+            print("✓ OpenCV fallback detector active (no TensorFlow required.).")
 
     def predict_accident(self, img: np.ndarray):
         """

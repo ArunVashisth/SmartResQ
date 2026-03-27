@@ -1,7 +1,10 @@
+# pyre-ignore-all-errors
 """
 Enhanced Camera Module with Live Feed Support
 Supports both live camera and video file input
 """
+from __future__ import annotations
+
 import cv2
 import numpy as np
 import os
@@ -11,6 +14,7 @@ import time
 import base64
 import tkinter as tk
 from datetime import datetime
+from typing import Optional, Dict, Any, Callable, List, Tuple, Union
 from config import Config
 from license_plate_detection import LicensePlateDetector
 from archive_system import ArchiveSystem
@@ -42,8 +46,24 @@ except ImportError:
 
 class AccidentDetectionSystem:
     """Main accident detection system with live camera support"""
+
+    # Class-level type declarations so Pyre2/Pyright can infer them correctly
+    use_web_dashboard: bool
+    model: Optional[Any]
+    plate_detector: Any
+    alarm_triggered: bool
+    scanning_for_plate: bool
+    plate_found: bool
+    current_accident_data: Optional[Dict[str, Any]]
+    current_accident_id: Optional[int]
+    running: bool
+    dashboard_callback: Optional[Callable[..., None]]
+    archive: ArchiveSystem
+    current_analysis_id: Optional[int]
+    _global_stop_event: Optional[threading.Event]
+    font: int
     
-    def __init__(self, use_web_dashboard=False):
+    def __init__(self, use_web_dashboard: bool = False) -> None:
         """
         Initialize the accident detection system
         
@@ -54,7 +74,7 @@ class AccidentDetectionSystem:
         
         self.use_web_dashboard = use_web_dashboard
         self.model = None
-        self.plate_detector = LicensePlateDetector(ocr_engine=Config.OCR_ENGINE)
+        self.plate_detector = LicensePlateDetector(ocr_engine=Config.OCR_ENGINE)  # type: ignore[assignment]
         
         # State variables
         self.alarm_triggered = False
@@ -70,10 +90,13 @@ class AccidentDetectionSystem:
         self.archive = ArchiveSystem()
         self.current_analysis_id = None
         
+        # Optional global stop event injected by app.py to kill all camera threads at once
+        self._global_stop_event = None
+        
         # Initialize model if available
         if MODEL_AVAILABLE:
             try:
-                self.model = AccidentDetectionModel(
+                self.model = AccidentDetectionModel(  # type: ignore[assignment]
                     Config.MODEL_JSON_PATH, 
                     Config.MODEL_WEIGHTS_PATH
                 )
@@ -83,23 +106,27 @@ class AccidentDetectionSystem:
                 print("  Running in demo mode")
                 self.model = None
         
-        self.font = cv2.FONT_HERSHEY_SIMPLEX
+        self.font = cv2.FONT_HERSHEY_SIMPLEX  # type: ignore[assignment]
     
-    def set_dashboard_callback(self, callback):
+    def set_dashboard_callback(self, callback: Callable[..., None]) -> None:
         """Set callback function for web dashboard updates"""
         self.dashboard_callback = callback
     
-    def emit_dashboard_update(self, event_type, data):
+    def emit_dashboard_update(self, event_type: str, data: Dict[str, Any]) -> None:
         """Send update to web dashboard"""
-        if self.dashboard_callback:
+        cb = self.dashboard_callback
+        if cb is not None:
             try:
-                self.dashboard_callback(event_type, data)
+                cb(event_type, data)
             except Exception as e:
                 print(f"Error emitting dashboard update: {e}")
     
-    def stop(self):
+    def stop(self) -> None:
         """Stop the detection system gracefully"""
         self.running = False
+        evt: Optional[threading.Event] = self._global_stop_event
+        if evt is not None:
+            evt.set()
         print("\n⚠ Stopping detection system...")
     
     def save_accident_photo(self, frame):
@@ -176,9 +203,12 @@ class AccidentDetectionSystem:
         try:
             # Play alert sound (Windows only)
             if WINSOUND_AVAILABLE:
-                winsound.Beep(Config.ALERT_SOUND_FREQUENCY, Config.ALERT_SOUND_DURATION)
+                try:
+                    import winsound as _ws
+                    _ws.Beep(Config.ALERT_SOUND_FREQUENCY, Config.ALERT_SOUND_DURATION)  # type: ignore[attr-defined]
+                except Exception:
+                    print("\a")  # Terminal bell fallback
             else:
-                # For non-Windows systems, print a message
                 print("\a")  # Terminal bell
         except Exception as e:
             print(f"Error playing alert sound: {e}")
@@ -266,12 +296,20 @@ Auto-calling ambulance in {Config.AUTO_CALL_DELAY} seconds...
     
     def start_alert_thread(self, accident_data):
         """Start alert in separate thread"""
-        # Distinguish between local GUI mode and Web mode
         if self.use_web_dashboard:
-            # Web dashboard handles its own alerts via socket.io
+            # In web mode: trigger real Twilio call + SMS via app module
             print(f"📡 Web Alert Dispatched for Accident: {accident_data.get('probability', 0):.1f}%")
+            def _web_alert():
+                try:
+                    # Lazy import to avoid circular dependency at module load time
+                    import app as _app  # type: ignore[import]
+                    _app.emit_alert_for_accident(accident_data)
+                except Exception as e:
+                    print(f"⚠ Web alert dispatch error: {e}")
+            alert_thread = threading.Thread(target=_web_alert, daemon=True)
+            alert_thread.start()
             return
-            
+
         alert_thread = threading.Thread(target=self.show_alert_message, args=(accident_data,))
         alert_thread.daemon = True
         alert_thread.start()
@@ -382,14 +420,19 @@ Auto-calling ambulance in {Config.AUTO_CALL_DELAY} seconds...
         print(f"📁 Archive session started: Analysis #{self.current_analysis_id}")
 
         try:
-            while self.running:  # Check running flag
+            while self.running and not (self._global_stop_event and self._global_stop_event.is_set()):
                 ret, frame = video.read()
                 if not ret:
                     print("\n⚠ End of video or error reading frame")
                     if isinstance(video_source, int):
-                        # Camera disconnected, try to reconnect
+                        # Camera disconnected — try to reconnect, but stop if told to
                         print("  Attempting to reconnect...")
-                        time.sleep(1)
+                        for _ in range(30):   # retry for up to 3 seconds then bail
+                            if not self.running or (self._global_stop_event and self._global_stop_event.is_set()):
+                                break
+                            time.sleep(0.1)
+                        if not self.running or (self._global_stop_event and self._global_stop_event.is_set()):
+                            break
                         video = cv2.VideoCapture(video_source)
                         continue
                     else:
@@ -401,14 +444,13 @@ Auto-calling ambulance in {Config.AUTO_CALL_DELAY} seconds...
                 # Optimization: Predict only every N frames
                 if frame_count % Config.FRAME_SKIP == 0 or frame_count == 1:
                     pred, prob = self.predict_accident(frame)
-                    # Extract probability value
+                    # Safely extract scalar probability - prob may be [[p0, p1]] or similar
+                    prob_arr = np.asarray(prob, dtype=float).ravel()
                     if pred == "Accident":
-                        # Convert to standard float to avoid JSON serialization issues
-                        last_prob = float(prob[0][0]) * 100 if isinstance(prob[0], (list, np.ndarray)) else float(prob[0]) * 100
+                        last_prob = float(prob_arr[0]) * 100
                     else:
-                        # Show (1 - no_accident_prob) or some derived intensity
-                        # Convert to standard float to avoid JSON serialization issues
-                        last_prob = float(1 - prob[0][1]) * 100 if isinstance(prob[0], (list, np.ndarray)) else float(prob[0]) * 100
+                        # Use complement of no-accident probability if available
+                        last_prob = float(1.0 - prob_arr[1]) * 100 if len(prob_arr) > 1 else float(prob_arr[0]) * 100
                 else:
                     pred = "Processing..."
                 

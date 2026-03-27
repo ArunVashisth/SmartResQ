@@ -220,3 +220,5 @@ The archive system is now **fully operational** and ready for production use. Yo
 - Share analysis results with stakeholders
 
 **The Smart Resq project is now a comprehensive accident monitoring and archiving platform!** 🚗📊
+ .venv\Scripts\python.exe app.py
+ .venv\Scripts\python.exe app.py

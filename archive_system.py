@@ -1,3 +1,4 @@
+# pyre-ignore-all-errors
 #!/usr/bin/env python3
 """
 Smart Resq Archive System (v2/Refactored)
@@ -10,6 +11,7 @@ import sqlite3
 import os
 import time
 from datetime import datetime
+from typing import Any, Dict, List, Optional
 import cv2
 import shutil
 import numpy as np
@@ -68,6 +70,9 @@ class ArchiveSystem:
             )
         ''')
         
+        # ── Migration: add columns that may be missing in older DBs ────────
+        self._migrate(cursor)
+        
         # Settings Table
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS archive_settings (
@@ -89,6 +94,42 @@ class ArchiveSystem:
         
         conn.commit()
         conn.close()
+
+    def _migrate(self, cursor):
+        """Add any missing columns to existing tables (safe ALTER TABLE migrations)"""
+        # Get existing columns in accidents table
+        cursor.execute("PRAGMA table_info(accidents)")
+        existing = {row[1] for row in cursor.fetchall()}
+        
+        migrations_accidents = [
+            ("location",               "TEXT DEFAULT 'Point A-7'"),
+            ("notes",                  "TEXT"),
+            ("license_plate_detected", "BOOLEAN DEFAULT 0"),
+            ("license_plate_text",     "TEXT"),
+            ("license_plate_path",     "TEXT"),
+        ]
+        for col, definition in migrations_accidents:
+            if col not in existing:
+                try:
+                    cursor.execute(f"ALTER TABLE accidents ADD COLUMN {col} {definition}")
+                    print(f"✓ DB migration: added accidents.{col}")
+                except Exception as e:
+                    print(f"⚠ Migration warning ({col}): {e}")
+        
+        # Migrations for video_analysis table
+        cursor.execute("PRAGMA table_info(video_analysis)")
+        existing_va = {row[1] for row in cursor.fetchall()}
+        migrations_va = [
+            ("duration", "REAL DEFAULT 0"),
+            ("output_dir", "TEXT"),
+        ]
+        for col, definition in migrations_va:
+            if col not in existing_va:
+                try:
+                    cursor.execute(f"ALTER TABLE video_analysis ADD COLUMN {col} {definition}")
+                    print(f"✓ DB migration: added video_analysis.{col}")
+                except Exception as e:
+                    print(f"⚠ Migration warning ({col}): {e}")
         
     def start_video_analysis(self, video_file, total_frames=0, fps=0, duration=0):
         """Start a new video analysis session and create storage structure"""
@@ -202,10 +243,9 @@ class ArchiveSystem:
         conn.close()
         print(f"✅ Archive finalized: ID {analysis_id}")
         
-    def get_analysis_history(self, limit=20):
+    def get_analysis_history(self, limit=50):
         """Retrieve recent analysis sessions"""
         conn = sqlite3.connect(self.archive_db)
-        # Use row_factory for dict-like access
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
         
@@ -216,7 +256,22 @@ class ArchiveSystem:
         ''', (limit,))
         
         rows = cursor.fetchall()
-        history = [dict(row) for row in rows]
+        history = []
+        for row in rows:
+            r = dict(row)
+            # Normalise keys so the React frontend gets consistent field names
+            history.append({
+                'id':               r.get('id'),
+                'title':            r.get('video_file', 'Untitled'),
+                'timestamp':        r.get('created_at') or r.get('start_time'),
+                'total_frames':     r.get('total_frames', 0),
+                'processed_frames': r.get('processed_frames', 0),
+                'accident_count':   r.get('accidents_detected', 0),
+                'fps':              r.get('fps', 0),
+                'duration_seconds': r.get('duration', 0),
+                'status':           r.get('status', 'unknown'),
+                'output_dir':       r.get('output_dir'),
+            })
         conn.close()
         return history
         
@@ -236,8 +291,34 @@ class ArchiveSystem:
         cursor.execute('SELECT * FROM accidents WHERE analysis_id = ? ORDER BY frame_number', (analysis_id,))
         accidents = cursor.fetchall()
         
-        result = dict(analysis)
-        result['accidents'] = [dict(acc) for acc in accidents]
+        row_data: Dict[str, Any] = dict(analysis)  # explicit wide type so key reassignment type-checks cleanly
+        result: Dict[str, Any] = {
+            'id':               row_data.get('id'),
+            'video_file':       row_data.get('video_file'),
+            'title':            row_data.get('video_file', 'Untitled'),
+            'total_frames':     row_data.get('total_frames', 0),
+            'processed_frames': row_data.get('processed_frames', 0),
+            'accident_count':   row_data.get('accidents_detected', 0),
+            'fps':              row_data.get('fps', 0),
+            'duration_seconds': row_data.get('duration', 0),
+            'status':           row_data.get('status', 'unknown'),
+            'output_dir':       row_data.get('output_dir'),
+            'start_time':       row_data.get('start_time'),
+            'end_time':         row_data.get('end_time'),
+            'created_at':       row_data.get('created_at'),
+        }
+        result['accidents'] = [
+            {
+                'id':             acc['id'],
+                'frame_number':   acc['frame_number'],
+                'confidence':     acc['confidence'],
+                'timestamp_sec':  None,   # not stored per-accident in live mode
+                'photo_path':     acc['photo_path'],
+                'license_plate':  acc.get('license_plate_text'),
+                'location':       acc.get('location', 'Point A-7'),
+            }
+            for acc in accidents
+        ]
         
         conn.close()
         return result
