@@ -169,14 +169,20 @@ _alert_log: List[Dict[str, Any]] = []
 
 # Runtime-overridable credentials (start from Config / .env)
 _alert_config: Dict[str, Any] = {
-    'account_sid':   Config.TWILIO_ACCOUNT_SID   or '',
-    'auth_token':    Config.TWILIO_AUTH_TOKEN     or '',
-    'from_number':   Config.TWILIO_PHONE_NUMBER   or '',
-    'to_number':     Config.DESTINATION_PHONE_NUMBER or '',
-    'twiml_url':     Config.TWILIO_TWIML_URL      or '',
-    'auto_call':     True,    # auto-call on accident detection
-    'auto_sms':      True,    # auto-SMS on accident detection
-    'sms_body':      '🚨 ACCIDENT DETECTED by Smart Resq at {timestamp}. Confidence: {probability:.1f}%. Location: {location}. Plate: {plate}.',
+    # Twilio (voice calls + fallback SMS)
+    'account_sid':       Config.TWILIO_ACCOUNT_SID        or '',
+    'auth_token':        Config.TWILIO_AUTH_TOKEN          or '',
+    'from_number':       Config.TWILIO_PHONE_NUMBER        or '',
+    'to_number':         Config.DESTINATION_PHONE_NUMBER   or '',
+    'twiml_url':         Config.TWILIO_TWIML_URL           or '',
+    # Fast2SMS (primary SMS provider — ideal for Indian numbers)
+    'fast2sms_api_key':  Config.FAST2SMS_API_KEY           or '',
+    'fast2sms_numbers':  Config.DESTINATION_PHONE_NUMBER   or '',  # comma-separated Indian numbers
+    # Behaviour flags
+    'auto_call':         True,   # auto voice-call on accident
+    'auto_sms':          True,   # auto SMS on accident
+    'sms_provider':      'fast2sms',  # 'fast2sms' | 'twilio' | 'both'
+    'sms_body':          '[URGENT] ACCIDENT DETECTED by Smart Resq at {timestamp}. Confidence: {probability:.1f}%. Loc: {location}. Plate: {plate}.',
 }
 
 
@@ -223,41 +229,124 @@ def _do_call(accident_data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         return {'success': False, 'error': str(e)}
 
 
+def _build_sms_body(accident_data: Optional[Dict[str, Any]] = None) -> str:
+    """Build the SMS body string from the template and accident data."""
+    cfg = _alert_config
+    body_template = cfg.get('sms_body', '🚨 ACCIDENT DETECTED by Smart Resq.')
+    data = accident_data or {}
+    return body_template.format(
+        timestamp=data.get('timestamp', datetime.now().strftime('%Y-%m-%d %H:%M:%S')),
+        probability=float(data.get('probability', 0)),
+        location=data.get('location', 'Unknown'),
+        plate=data.get('plate_text') or 'N/A',
+    )
+
+
+def _do_fast2sms(accident_data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """Send SMS via Fast2SMS API using GET request format. Returns {success, request_id/error}.
+    Matches Fast2SMS dashboard standard GET API structure.
+    """
+    import urllib.request
+    import urllib.parse
+    import json as _json
+
+    cfg = _alert_config
+    api_key = cfg.get('fast2sms_api_key', '')
+    if not api_key or api_key == 'your_fast2sms_api_key_here':
+        return {'success': False, 'error': 'Fast2SMS API key not configured'}
+
+    numbers_raw = cfg.get('fast2sms_numbers', '') or cfg.get('to_number', '')
+    if not numbers_raw:
+        return {'success': False, 'error': 'No destination phone number configured'}
+
+    # Fast2SMS expects 10-digit Indian numbers (strip country code if present). Enforce uniqueness.
+    clean_numbers = []
+    for num in numbers_raw.replace(' ', '').split(','):
+        num = num.strip().lstrip('+')
+        if num.startswith('91') and len(num) == 12:
+            num = num[2:]
+        if num and num not in clean_numbers:
+            clean_numbers.append(num)
+    numbers_str = ','.join(clean_numbers)
+
+    body = _build_sms_body(accident_data)
+
+    # Determine optimal encoding to prevent double-charging.
+    # GSM English = 160 chars per SMS. Unicode = 70 chars per SMS.
+    is_unicode = any(ord(c) > 127 for c in body)
+    lang = 'unicode' if is_unicode else 'english'
+
+    try:
+        # Build query parameters exactly as shown in the Fast2SMS GET API docs
+        query_params = urllib.parse.urlencode({
+            'authorization': api_key,
+            'route': 'q',
+            'message': body,
+            'language': lang,
+            'flash': '0',  # 0 = normal SMS (saved to inbox), 1 = Flash SMS (temp popup)
+            'numbers': numbers_str
+        })
+        
+        url = f"https://www.fast2sms.com/dev/bulkV2?{query_params}"
+        
+        req = urllib.request.Request(url, method='GET')
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            result = _json.loads(resp.read().decode('utf-8'))
+
+        if result.get('return') is True:
+            request_id = result.get('request_id', 'N/A')
+            return {'success': True, 'request_id': request_id, 'body': body, 'provider': 'fast2sms'}
+        else:
+            return {'success': False, 'error': result.get('message', 'Unknown Fast2SMS error')}
+    except urllib.error.HTTPError as e:
+        err_msg = str(e)
+        try:
+            # Fast2SMS returns the real error reason in the JSON body, e.g. {"message": "Invalid Number"}
+            error_details = _json.loads(e.read().decode('utf-8'))
+            if 'message' in error_details:
+                err_msg = error_details['message']
+        except Exception:
+            pass
+        return {'success': False, 'error': f'Fast2SMS API Error: {err_msg}'}
+    except Exception as e:
+        return {'success': False, 'error': f'Fast2SMS request failed: {str(e)}'}
+
+
 def _do_sms(accident_data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-    """Send Twilio SMS. Returns {success, sid/error}."""
+    """Send SMS via Twilio (used as fallback/standby when Fast2SMS is not the chosen provider)."""
     try:
         from twilio.rest import Client as TwilioClient  # type: ignore
     except ImportError:
         return {'success': False, 'error': 'twilio package not installed'}
 
     cfg = _alert_config
-    if not cfg['account_sid'] or not cfg['auth_token']:
+    if not cfg.get('account_sid') or not cfg.get('auth_token'):
         return {'success': False, 'error': 'Twilio credentials not configured'}
-    if not cfg['to_number'] or not cfg['from_number']:
-        return {'success': False, 'error': 'Phone numbers not configured'}
+    if not cfg.get('to_number') or not cfg.get('from_number'):
+        return {'success': False, 'error': 'Twilio phone numbers not configured'}
 
     try:
-        body_template = cfg.get('sms_body', '🚨 ACCIDENT DETECTED by Smart Resq.')
-        data = accident_data or {}
-        body = body_template.format(
-            timestamp=data.get('timestamp', datetime.now().strftime('%Y-%m-%d %H:%M:%S')),
-            probability=float(data.get('probability', 0)),
-            location=data.get('location', 'Unknown'),
-            plate=data.get('plate_text') or 'N/A',
-        )
+        body = _build_sms_body(accident_data)
         client = TwilioClient(cfg['account_sid'], cfg['auth_token'])
         msg = client.messages.create(
             body=body,
             to=cfg['to_number'],
             from_=cfg['from_number']
         )
-        return {'success': True, 'sid': msg.sid, 'body': body}
+        return {'success': True, 'sid': msg.sid, 'body': body, 'provider': 'twilio'}
     except Exception as e:
         return {'success': False, 'error': str(e)}
 
 
 def emit_alert_for_accident(accident_data: Dict[str, Any]) -> None:
-    """Called by the camera thread when an accident is confirmed in web-dashboard mode."""
+    """Called by the camera thread when an accident is confirmed in web-dashboard mode.
+    
+    SMS priority:
+      • 'fast2sms'  → use Fast2SMS only
+      • 'twilio'    → use Twilio only  (standby fallback)
+      • 'both'      → send via both providers
+    """
+    # ── Voice Call (always uses Twilio) ──────────────────────────────────
     if _alert_config.get('auto_call'):
         result = _do_call(accident_data)
         if result['success']:
@@ -267,14 +356,38 @@ def emit_alert_for_accident(accident_data: Dict[str, Any]) -> None:
             _log_alert('call', f'Call failed: {result["error"]}', False, result['error'])
             print(f'✗ Emergency call failed: {result["error"]}')
 
+    # ── SMS ───────────────────────────────────────────────────────────────
     if _alert_config.get('auto_sms'):
-        result = _do_sms(accident_data)
-        if result['success']:
-            _log_alert('sms', f'SMS sent (SID: {result["sid"]})', True, result.get('body', ''))
-            print(f'✓ SMS sent: {result["sid"]}')
-        else:
-            _log_alert('sms', f'SMS failed: {result["error"]}', False, result['error'])
-            print(f'✗ SMS failed: {result["error"]}')
+        provider = _alert_config.get('sms_provider', 'fast2sms')
+
+        if provider in ('fast2sms', 'both'):
+            result = _do_fast2sms(accident_data)
+            if result['success']:
+                rid = result.get('request_id', 'N/A')
+                _log_alert('sms', f'Fast2SMS sent (ID: {rid})', True, result.get('body', ''))
+                print(f'✓ Fast2SMS sent (ID: {rid})')
+            else:
+                _log_alert('sms', f'Fast2SMS failed: {result["error"]}', False, result['error'])
+                print(f'✗ Fast2SMS failed: {result["error"]}')
+                # Auto-fallback to Twilio if Fast2SMS fails and provider is fast2sms
+                if provider == 'fast2sms':
+                    print('↩ Falling back to Twilio SMS...')
+                    twilio_result = _do_sms(accident_data)
+                    if twilio_result['success']:
+                        _log_alert('sms', f'Twilio fallback SMS sent (SID: {twilio_result["sid"]})', True, twilio_result.get('body', ''))
+                        print(f'✓ Twilio fallback SMS sent: {twilio_result["sid"]}')
+                    else:
+                        _log_alert('sms', f'Twilio fallback also failed: {twilio_result["error"]}', False, twilio_result['error'])
+                        print(f'✗ Twilio fallback also failed: {twilio_result["error"]}')
+
+        if provider in ('twilio', 'both'):
+            result = _do_sms(accident_data)
+            if result['success']:
+                _log_alert('sms', f'Twilio SMS sent (SID: {result["sid"]})', True, result.get('body', ''))
+                print(f'✓ Twilio SMS sent: {result["sid"]}')
+            else:
+                _log_alert('sms', f'Twilio SMS failed: {result["error"]}', False, result['error'])
+                print(f'✗ Twilio SMS failed: {result["error"]}')
 
 
 @app.route('/api/alert/config', methods=['GET'])
@@ -290,13 +403,19 @@ def get_alert_config():
 def save_alert_config():
     """Update runtime alert config (does NOT write to disk — use .env for persistence)."""
     data = request.get_json() or {}
-    allowed = {'account_sid','auth_token','from_number','to_number','twiml_url','auto_call','auto_sms','sms_body'}
+    allowed = {
+        'account_sid', 'auth_token', 'from_number', 'to_number', 'twiml_url',
+        'auto_call', 'auto_sms', 'sms_body', 'sms_provider',
+        'fast2sms_api_key', 'fast2sms_numbers',
+    }
     for key in allowed:
         if key in data:
             _alert_config[key] = data[key]
-    # If user submitted a masked token, don't overwrite
+    # Don't overwrite if masked token placeholder was submitted
     if data.get('auth_token', '').endswith('•••••••••••••••••'):
-        pass  # keep existing token
+        pass
+    if data.get('fast2sms_api_key', '').endswith('•••••••••••••••••'):
+        pass
     _log_alert('config', 'Alert configuration updated', True)
     return jsonify({'success': True, 'message': 'Alert config updated (runtime only — add to .env for persistence)'})
 
@@ -316,14 +435,28 @@ def trigger_call():
 
 @app.route('/api/alert/sms', methods=['POST'])
 def trigger_sms():
-    """Manually trigger an emergency SMS."""
+    """Manually trigger an SMS via Twilio (standby)."""
     accident_data = request.get_json() or {}
     result = _do_sms(accident_data)
     if result['success']:
-        _log_alert('sms', f'Manual SMS sent (SID: {result["sid"]})', True, result.get('body',''))
+        _log_alert('sms', f'Manual Twilio SMS sent (SID: {result["sid"]})', True, result.get('body',''))
         return jsonify({'success': True, 'sid': result['sid'], 'body': result.get('body','')})
     else:
-        _log_alert('sms', f'SMS failed: {result["error"]}', False, result['error'])
+        _log_alert('sms', f'Twilio SMS failed: {result["error"]}', False, result['error'])
+        return jsonify({'success': False, 'error': result['error']}), 500
+
+
+@app.route('/api/alert/fast2sms', methods=['POST'])
+def trigger_fast2sms():
+    """Manually trigger an emergency SMS via Fast2SMS."""
+    accident_data = request.get_json() or {}
+    result = _do_fast2sms(accident_data)
+    if result['success']:
+        rid = result.get('request_id', 'N/A')
+        _log_alert('sms', f'Manual Fast2SMS sent (ID: {rid})', True, result.get('body',''))
+        return jsonify({'success': True, 'request_id': rid, 'body': result.get('body','')})
+    else:
+        _log_alert('sms', f'Fast2SMS failed: {result["error"]}', False, result['error'])
         return jsonify({'success': False, 'error': result['error']}), 500
 
 

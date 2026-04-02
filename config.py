@@ -35,6 +35,9 @@ class Config:
     DESTINATION_PHONE_NUMBER = os.getenv("DESTINATION_PHONE_NUMBER")
     TWILIO_TWIML_URL = os.getenv("TWILIO_TWIML_URL", "https://handler.twilio.com/twiml/EHcbc30d7e5fb03b07f5c7116e0dacceaf")
     
+    # Fast2SMS Configuration
+    FAST2SMS_API_KEY = os.getenv("FAST2SMS_API_KEY")
+    
     # Directory Configuration
     ACCIDENT_PHOTOS_DIR = "accident_photos"
     PLATE_DETECTION_FRAMES_DIR = "plate_detection_frames"
