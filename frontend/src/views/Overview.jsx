@@ -29,7 +29,7 @@ const Overview = ({ dashboardState, onStart, onSwitchAnalysis }) => {
       {/* HERO SECTION */}
       <div className="hero-section">
         <video className="hero-video" autoPlay muted loop playsInline preload="auto">
-          <source src="/static/hero.mp4" type="video/mp4" />
+          <source src="/hero-bg.mp4" type="video/mp4" />
         </video>
         <div className="hero-overlay"></div>
         <div className="hero-content">

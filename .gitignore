@@ -194,3 +194,5 @@ accident_photos/*
 !accident_photos/.gitkeep
 vehicle_no_plates/*
 !vehicle_no_plates/.gitkeep
+
+!frontend/public/hero-bg.mp4
