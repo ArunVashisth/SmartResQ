@@ -6,6 +6,9 @@ import Monitoring from './views/Monitoring';
 import VideoAnalysis from './views/VideoAnalysis';
 import Archive from './views/Archive';
 import Alerts from './views/Alerts';
+import TechStack from './views/TechStack/index.jsx';
+import Settings from './views/Settings';
+import Support from './views/Support';
 import { useSocket } from './hooks/useSocket';
 
 function App() {
@@ -89,45 +92,5 @@ function App() {
     </div>
   );
 }
-
-const TechStack = () => (
-    <div className="tech-page">
-      <div className="panel-head"><h3>Infrastructure Log</h3></div>
-      <div className="ideology-grid" style={{ marginTop: '20px' }}>
-         <div className="ideology-card build" style={{ background: 'var(--bg-card)' }}>
-            <h3>Neural Engine</h3><p>TensorFlow / Keras CNN model trained on 100k+ accident scenarios.</p>
-         </div>
-         <div className="ideology-card build" style={{ background: 'var(--bg-card)' }}>
-            <h3>Vision Core</h3><p>OpenCV for real-time stream processing and frame interpolation.</p>
-         </div>
-         <div className="ideology-card build" style={{ background: 'var(--bg-card)' }}>
-            <h3>Sync Gateway</h3><p>Flask-SocketIO establishing low-latency telemetry pipelines.</p>
-         </div>
-      </div>
-    </div>
-);
-
-const Settings = () => (
-    <div className="settings-page">
-      <div className="panel-head"><h3>Core Calibration</h3></div>
-      <div className="settings-tabs" style={{ marginTop: '20px' }}>
-         <div className="settings-group">
-            <h4>Vision Parameters</h4>
-            <div className="settings-grid-3">
-               <div className="input-group"><label>INPUT SOURCE</label><select className="premium-input"><option>Camera 01</option></select></div>
-            </div>
-         </div>
-      </div>
-    </div>
-);
-
-const Support = () => (
-    <div className="support-layout">
-      <div className="support-header"><h1>How can we help?</h1><p>Premium support for SmartResQ Enterprise deployments</p></div>
-      <div className="support-grid">
-         <div className="support-card highlighted"><h3>Live Debug</h3><p>Connect to a system engineer in real-time.</p></div>
-      </div>
-    </div>
-);
 
 export default App;

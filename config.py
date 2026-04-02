@@ -12,8 +12,8 @@ class Config:
     """Application configuration"""
     
     # Model Configuration
-    MODEL_JSON_PATH = "model.json"
-    MODEL_WEIGHTS_PATH = "model_weights.keras"
+    MODEL_JSON_PATH = "models/model.json"
+    MODEL_WEIGHTS_PATH = "models/model_weights.keras"
     MODEL_INPUT_SIZE = (250, 250)
     
     # Probability threshold for accident detection

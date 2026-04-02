@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 
 const Sidebar = ({ activeView, setActiveView }) => {
+  const [isCollapsed, setIsCollapsed] = useState(false);
   const menuItems = [
     { id: 'overview', label: 'Overview', icon: (
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -45,15 +46,32 @@ const Sidebar = ({ activeView, setActiveView }) => {
   ];
 
   return (
-    <aside className="sidebar">
-      <a href="#" className="sidebar-logo">
-        <div className="logo-glow">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+    <aside className={`sidebar ${isCollapsed ? 'collapsed' : ''}`}>
+      <div className="sidebar-header">
+        <a href="#" className="sidebar-logo">
+          <div className="logo-glow">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+            </svg>
+          </div>
+          <div className="logo-text">SmartResQ</div>
+        </a>
+        <button className="collapse-btn" onClick={() => setIsCollapsed(!isCollapsed)} title={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            {isCollapsed ? (
+              <>
+                <polyline points="13 17 18 12 13 7" />
+                <polyline points="6 17 11 12 6 7" />
+              </>
+            ) : (
+              <>
+                <polyline points="11 17 6 12 11 7" />
+                <polyline points="18 17 13 12 18 7" />
+              </>
+            )}
           </svg>
-        </div>
-        <div className="logo-text">SmartResQ</div>
-      </a>
+        </button>
+      </div>
 
       <nav className="nav-menu">
         {menuItems.map((item) => (

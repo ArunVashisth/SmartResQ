@@ -20,6 +20,10 @@ export default defineConfig(({ mode }) => {
           target: backendUrl,
           changeOrigin: true,
         },
+        '/static': {
+          target: backendUrl,
+          changeOrigin: true,
+        },
         '/archives': {
           target: backendUrl,
           changeOrigin: true,

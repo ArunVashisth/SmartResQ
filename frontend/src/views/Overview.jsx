@@ -9,6 +9,21 @@ const Overview = ({ dashboardState, onStart, onSwitchAnalysis }) => {
       liveFrameRef.current.src = `data:image/jpeg;base64,${frame}`;
     }
   }, [dashboardState?.current_frame]);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('visible');
+        }
+      });
+    }, { threshold: 0.1 });
+
+    const elements = document.querySelectorAll('.essence-header, .timeline-container, .ideology-grid');
+    elements.forEach(el => observer.observe(el));
+
+    return () => observer.disconnect();
+  }, []);
   return (
     <div id="view-overview" className="dashboard-view active">
       {/* HERO SECTION */}
