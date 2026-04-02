@@ -9,6 +9,7 @@ import Alerts from './views/Alerts';
 import TechStack from './views/TechStack/index.jsx';
 import Settings from './views/Settings';
 import Support from './views/Support';
+import Developer from './views/Developer';
 import { useSocket } from './hooks/useSocket';
 
 function App() {
@@ -57,6 +58,8 @@ function App() {
         return <Settings />;
       case 'support':
         return <Support />;
+      case 'developer':
+        return <Developer />;
       default:               
         return <Overview dashboardState={dashboardState} onStart={handleStart} onSwitchAnalysis={() => setActiveView('video-analysis')} />;
     }

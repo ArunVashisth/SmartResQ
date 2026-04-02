@@ -1,0 +1,176 @@
+/* Developer.css - Storytelling Portfolio Styles (Light Theme) */
+
+.dev-root {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #ffffff 0%, #f0fdf4 50%, #eff6ff 100%);
+  color: #0f172a;
+  overflow-x: hidden;
+  margin: -2rem -2.5rem;
+  padding-bottom: 5rem;
+  font-family: inherit;
+  position: relative;
+}
+
+/* Background Animated Grid */
+.dev-bg-grid {
+  position: fixed;
+  inset: 0;
+  background-image: 
+    linear-gradient(to right, rgba(59,130,246,0.06) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(59,130,246,0.06) 1px, transparent 1px);
+  background-size: 50px 50px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Cosmic Orbs (Light Mode variations) */
+.dev-cosmic-orb-1 {
+  position: fixed; top: 5%; right: 5%;
+  width: 40vw; height: 40vw; max-width: 600px; max-height: 600px;
+  background: radial-gradient(circle, rgba(59,130,246,0.12) 0%, transparent 70%);
+  border-radius: 50%; pointer-events: none; z-index: 0;
+  animation: float 15s ease-in-out infinite alternate;
+}
+.dev-cosmic-orb-2 {
+  position: fixed; bottom: 5%; left: 10%;
+  width: 30vw; height: 30vw; max-width: 500px; max-height: 500px;
+  background: radial-gradient(circle, rgba(167,139,250,0.15) 0%, transparent 70%);
+  border-radius: 50%; pointer-events: none; z-index: 0;
+  animation: float 20s ease-in-out infinite alternate-reverse;
+}
+
+/* Text Utilities */
+.dev-text-gradient {
+  background: linear-gradient(135deg, #2563eb, #7c3aed, #db2777);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  display: inline-block;
+}
+
+.dev-text-cyan {
+  background: linear-gradient(135deg, #0ea5e9, #3b82f6);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  display: inline-block;
+}
+
+.dev-subtitle {
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  font-size: 0.85rem;
+  font-weight: 800;
+  color: #64748b;
+}
+
+/* Hero Section */
+.dev-hero {
+  min-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  padding: 2rem;
+  position: relative;
+  z-index: 10;
+}
+
+.dev-hero-title {
+  font-size: clamp(3rem, 8vw, 6rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  margin: 1.5rem 0;
+  color: #0f172a;
+}
+
+/* Glassmorphism Elements (Light Mode) */
+.dev-glass {
+  background: rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  border-radius: 1.5rem;
+  box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03);
+}
+
+.dev-glass-card {
+  padding: 2rem;
+  transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+}
+.dev-glass-card::before {
+  content: ''; position: absolute; inset: 0;
+  background: radial-gradient(800px circle at var(--mouse-x) var(--mouse-y), rgba(59,130,246,0.08), transparent 40%);
+  opacity: 0; transition: opacity 0.3s;
+}
+.dev-glass-card:hover::before { opacity: 1; }
+.dev-glass-card:hover {
+  transform: translateY(-8px) scale(1.02);
+  border-color: rgba(96, 165, 250, 0.6);
+  box-shadow: 0 20px 40px -10px rgba(37,99,235,0.15), 0 0 20px rgba(59, 130, 246, 0.1);
+}
+
+/* Animations */
+@keyframes float {
+  0% { transform: translateY(0) scale(1); }
+  100% { transform: translateY(-50px) scale(1.1); }
+}
+
+.dev-btn {
+  background: linear-gradient(135deg, #2563eb, #4f46e5);
+  color: white;
+  font-weight: 700;
+  padding: 0.8rem 2rem;
+  border-radius: 9999px;
+  border: none;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 10px 20px -5px rgba(37, 99, 235, 0.4);
+}
+.dev-btn:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 15px 25px -5px rgba(37, 99, 235, 0.6);
+}
+.dev-btn-alt {
+  background: rgba(255, 255, 255, 0.8);
+  border: 1px solid #bfdbfe;
+  color: #1e293b;
+  font-weight: 700;
+  padding: 0.8rem 2rem;
+  border-radius: 9999px;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+}
+.dev-btn-alt:hover {
+  transform: translateY(-3px);
+  background: white;
+  border-color: #93c5fd;
+  box-shadow: 0 10px 15px -3px rgba(37,99,235,0.1);
+}
+
+.dev-skill-pill {
+  padding: 0.6rem 1.25rem;
+  border-radius: 9999px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #334155;
+  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+}
+.dev-skill-pill:hover {
+  background: linear-gradient(135deg, #eff6ff, #ffffff);
+  border-color: #93c5fd;
+  color: #1d4ed8;
+  transform: scale(1.08) translateY(-2px);
+  box-shadow: 0 10px 15px -3px rgba(37,99,235,0.15);
+}
