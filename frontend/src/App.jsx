@@ -23,6 +23,8 @@ function App() {
   const [accountStatus, setAccountStatus] = useState('approved');
   const [isVerifying, setIsVerifying] = useState(true);
   const [showOfflineToast, setShowOfflineToast] = useState(false);
+  const [isActionPending, setIsActionPending] = useState(false);
+  const [actionError, setActionError] = useState(null);
   
   const { socket, dashboardState, videoAnalysisState, resetVideoAnalysis, emitAction, isConnected } = useSocket();
 
@@ -66,18 +68,46 @@ function App() {
   }, []);
 
   const handleStart = async () => {
+    if (isActionPending) return;
+    setIsActionPending(true);
+    setActionError(null);
     try {
-      await fetch('/api/start', { method: 'POST' });
+      const res = await fetch('/api/start', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('auth_token')}` }
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setActionError(data.error || 'Failed to start system');
+        setTimeout(() => setActionError(null), 4000);
+      }
     } catch (e) {
-      console.error('Failed to start system:', e);
+      setActionError('Network error — backend offline?');
+      setTimeout(() => setActionError(null), 4000);
+    } finally {
+      setIsActionPending(false);
     }
   };
 
   const handleStop = async () => {
+    if (isActionPending) return;
+    setIsActionPending(true);
+    setActionError(null);
     try {
-      await fetch('/api/stop', { method: 'POST' });
+      const res = await fetch('/api/stop', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('auth_token')}` }
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setActionError(data.error || 'Failed to stop system');
+        setTimeout(() => setActionError(null), 4000);
+      }
     } catch (e) {
-      console.error('Failed to stop system:', e);
+      setActionError('Network error — backend offline?');
+      setTimeout(() => setActionError(null), 4000);
+    } finally {
+      setIsActionPending(false);
     }
   };
 
@@ -162,6 +192,7 @@ function App() {
           onStart={handleStart}
           onStop={handleStop}
           isRunning={dashboardState.is_running}
+          isActionPending={isActionPending}
           onLogout={handleLogout}
         />
         
@@ -172,28 +203,30 @@ function App() {
         </div>
       </main>
 
-      {/* Connection Toast */}
+      {/* Toasts */}
       <div className="notification-area" style={{ 
-        position: 'fixed', 
-        bottom: '20px', 
-        right: '20px', 
-        zIndex: 9999,
-        pointerEvents: 'none',
-        display: 'block'
+        position: 'fixed', bottom: '20px', right: '20px', zIndex: 9999,
+        pointerEvents: 'none', display: 'flex', flexDirection: 'column', gap: '8px'
       }}>
-        <div className="toast danger" style={{ 
-          background: 'var(--danger)', 
-          color: 'white', 
-          padding: '1rem', 
-          borderRadius: '8px', 
-          margin: '1rem', 
-          boxShadow: 'var(--shadow-lg)', 
-          fontWeight: 700,
+        {/* Offline toast */}
+        <div style={{ 
+          background: 'var(--danger)', color: 'white', padding: '1rem', borderRadius: '8px', 
+          boxShadow: 'var(--shadow-lg)', fontWeight: 700,
           transform: showOfflineToast ? 'translateY(0)' : 'translateY(150%)',
           opacity: showOfflineToast ? 1 : 0,
           transition: 'all 0.5s cubic-bezier(0.16, 1, 0.3, 1)'
         }}>
-          OFFLINE: DISCONNECTED FROM INTELLIGENCE HUB
+          ⚠ OFFLINE: DISCONNECTED FROM INTELLIGENCE HUB
+        </div>
+        {/* Action error toast */}
+        <div style={{ 
+          background: '#92400e', color: 'white', padding: '1rem', borderRadius: '8px', 
+          boxShadow: 'var(--shadow-lg)', fontWeight: 700,
+          transform: actionError ? 'translateY(0)' : 'translateY(150%)',
+          opacity: actionError ? 1 : 0,
+          transition: 'all 0.5s cubic-bezier(0.16, 1, 0.3, 1)'
+        }}>
+          ⚠ {actionError}
         </div>
       </div>
     </div>

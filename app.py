@@ -433,9 +433,15 @@ def add_cameras():
         name = cam.get('name', 'Camera')
         url = cam.get('url', '').strip()
         if url:
-            import datetime as dt_module
-            res = cameras_col.insert_one({'name': name, 'url': url, 'created_at': datetime.now(dt_module.timezone.utc)})
-            added.append({'_id': str(res.inserted_id), 'name': name, 'url': url})
+            import datetime
+            now_utc = datetime.datetime.now(datetime.timezone.utc)
+            res = cameras_col.insert_one({
+                'name': name, 
+                'url': url, 
+                'created_at': now_utc,
+                'is_active': True
+            })
+            added.append({'_id': str(res.inserted_id), 'name': name, 'url': url, 'is_active': True})
             
     return jsonify({'success': True, 'added': added, 'message': f'{len(added)} cameras added'})
 
@@ -480,26 +486,87 @@ def rename_camera(camera_id):
     )
     return jsonify({'success': True, 'name': new_name})
 
-def generate_frames_mjpeg(camera_url):
+@app.route('/api/cameras/primary/feed')
+def primary_camera_feed():
+    """Stream the primary system camera in standby without neural analysis."""
     from config import Config
+    return Response(
+        generate_frames_mjpeg(Config.VIDEO_SOURCE),
+        mimetype='multipart/x-mixed-replace; boundary=frame',
+        headers={
+            'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+            'Pragma': 'no-cache',
+            'Access-Control-Allow-Origin': '*',
+        }
+    )
+
+def generate_frames_mjpeg(camera_url):
+    """
+    MJPEG proxy generator — fully hardened:
+    • Handles GeneratorExit (client navigates away)
+    • Handles BrokenPipeError / ConnectionResetError (hot-reload)
+    • Caps reconnect attempts at 10 before giving up
+    • Throttles to ~25 FPS to save CPU
+    • Always releases cap on exit
+    """
     import time
-    
-    # Wait a bit to not overwhelm system if many load at once
-    time.sleep(0.5) 
-    cap = cv2.VideoCapture(camera_url)
-    
-    while True:
-        success, frame = cap.read()
-        if not success:
-            time.sleep(1)
-            cap = cv2.VideoCapture(camera_url)
-            continue
-            
-        frame = cv2.resize(frame, (640, 360))
-        ret, buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 70])
-        frame_bytes = buffer.tobytes()
-        yield (b'--frame\r\n'
-               b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
+    import os
+
+    MAX_RECONNECTS = 10
+    FRAME_INTERVAL = 1.0 / 25  # 25 FPS cap
+
+    reconnects = 0
+    cap = None
+
+    try:
+        cap = cv2.VideoCapture(camera_url)
+        last_frame_time = 0.0
+
+        while True:
+            now = time.time()
+            elapsed = now - last_frame_time
+            if elapsed < FRAME_INTERVAL:
+                time.sleep(FRAME_INTERVAL - elapsed)
+
+            success, frame = cap.read()
+
+            if not success:
+                reconnects += 1
+                if reconnects > MAX_RECONNECTS:
+                    # Give up — client will see error and retry via StreamImg
+                    break
+                time.sleep(min(1.0 * reconnects, 5.0))  # exponential-ish back-off
+                cap.release()
+                cap = cv2.VideoCapture(camera_url)
+                continue
+
+            reconnects = 0  # reset on successful read
+            last_frame_time = time.time()
+
+            frame = cv2.resize(frame, (640, 360))
+            ret, buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 70])
+            if not ret:
+                continue
+
+            yield (
+                b'--frame\r\n'
+                b'Content-Type: image/jpeg\r\n\r\n'
+                + buffer.tobytes()
+                + b'\r\n'
+            )
+
+    except (GeneratorExit, BrokenPipeError, ConnectionResetError, OSError):
+        # Normal: client navigated away or hot-reloaded
+        pass
+    except Exception as e:
+        # Unexpected — log but don't crash the server
+        print(f'[MJPEG] Unexpected stream error: {e}')
+    finally:
+        try:
+            if cap is not None:
+                cap.release()
+        except Exception:
+            pass
 
 from flask import Response
 @app.route('/api/cameras/<camera_id>/feed', methods=['GET'])
@@ -507,8 +574,16 @@ def camera_feed(camera_id):
     cam = cameras_col.find_one({'_id': ObjectId(camera_id)})
     if not cam:
         return "Camera not found", 404
-        
-    return Response(generate_frames_mjpeg(cam['url']), mimetype='multipart/x-mixed-replace; boundary=frame')
+    return Response(
+        generate_frames_mjpeg(cam['url']),
+        mimetype='multipart/x-mixed-replace; boundary=frame',
+        headers={
+            'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+            'Pragma': 'no-cache',
+            'Access-Control-Allow-Origin': '*',
+        }
+    )
+
 
 
 # Global state

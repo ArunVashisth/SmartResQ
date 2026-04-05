@@ -1,6 +1,6 @@
 import React from 'react';
 
-const TopNav = ({ systemStatus, onStart, onStop, isRunning, onLogout }) => {
+const TopNav = ({ systemStatus, onStart, onStop, isRunning, isActionPending, onLogout }) => {
   return (
     <header className="top-nav">
       <div style={{ display: 'flex', alignItems: 'center', gap: '2rem' }}>
@@ -20,18 +20,28 @@ const TopNav = ({ systemStatus, onStart, onStop, isRunning, onLogout }) => {
         </div>
         
         {!isRunning ? (
-          <button className="btn-premium btn-start" onClick={onStart}>
+          <button
+            className="btn-premium btn-start"
+            onClick={onStart}
+            disabled={isActionPending}
+            style={{ opacity: isActionPending ? 0.6 : 1, cursor: isActionPending ? 'not-allowed' : 'pointer' }}
+          >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
               <polygon points="5 3 19 12 5 21 5 3" />
             </svg>
-            Launch System
+            {isActionPending ? 'Starting...' : 'Launch System'}
           </button>
         ) : (
-          <button className="btn-premium btn-stop" onClick={onStop}>
+          <button
+            className="btn-premium btn-stop"
+            onClick={onStop}
+            disabled={isActionPending}
+            style={{ opacity: isActionPending ? 0.6 : 1, cursor: isActionPending ? 'not-allowed' : 'pointer' }}
+          >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
               <rect x="3" y="3" width="18" height="18" rx="2" />
             </svg>
-            Abort Mission
+            {isActionPending ? 'Stopping...' : 'Abort Mission'}
           </button>
         )}
         <button onClick={onLogout} className="btn-logout">
@@ -46,3 +56,4 @@ const TopNav = ({ systemStatus, onStart, onStop, isRunning, onLogout }) => {
 };
 
 export default TopNav;
+
