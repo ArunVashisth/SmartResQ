@@ -23,7 +23,7 @@ const MetaCard = ({ label, value, color }) => (
 );
 
 /* ── accident log row ────────────────────────── */
-const AccidentRow = ({ acc, fps, idx }) => {
+const AccidentRow = ({ acc, fps, idx, setFullScreenImage }) => {
   const pct   = fmtPct(acc.confidence);
   const sec   = fmtSec(acc.frame_number, fps);
   const plate = acc.license_plate;
@@ -32,7 +32,7 @@ const AccidentRow = ({ acc, fps, idx }) => {
   return (
     <div style={{
       display: 'grid',
-      gridTemplateColumns: '28px 1fr 1fr 1fr 90px',
+      gridTemplateColumns: '28px 64px 1fr 1fr 1.5fr 90px',
       gap: '0.5rem',
       alignItems: 'center',
       padding: '0.55rem 0.75rem',
@@ -41,6 +41,15 @@ const AccidentRow = ({ acc, fps, idx }) => {
       background: idx % 2 === 0 ? 'transparent' : 'rgba(0,0,0,0.04)',
     }}>
       <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>#{idx + 1}</span>
+      <div>
+        {acc.photo_path ? (
+          <div style={{ width: '48px', height: '36px', borderRadius: '4px', overflow: 'hidden', background: '#000', cursor: 'pointer', border: '1px solid var(--border)' }} onClick={() => setFullScreenImage(acc.photo_path)} title="Click to enlarge">
+            <img src={acc.photo_path} alt="Accident Frame" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          </div>
+        ) : (
+          <span style={{ color: '#94a3b8', fontSize: '0.7rem' }}>—</span>
+        )}
+      </div>
       <span>Frame&nbsp;<strong>{acc.frame_number ?? '—'}</strong></span>
       <span style={{ color: 'var(--text-muted)' }}>{sec}</span>
       <span style={{ fontSize: '0.72rem', color: '#64748b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -54,7 +63,7 @@ const AccidentRow = ({ acc, fps, idx }) => {
 };
 
 /* ── expandable detail panel ─────────────────── */
-const SessionDetail = ({ sessionId, fps }) => {
+const SessionDetail = ({ sessionId, fps, setFullScreenImage }) => {
   const [detail, setDetail]   = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -99,7 +108,7 @@ const SessionDetail = ({ sessionId, fps }) => {
         <div>
           <div style={{
             display: 'grid',
-            gridTemplateColumns: '28px 1fr 1fr 1fr 90px',
+            gridTemplateColumns: '28px 64px 1fr 1fr 1.5fr 90px',
             gap: '0.5rem',
             padding: '0.35rem 0.75rem',
             fontSize: '0.65rem',
@@ -110,10 +119,10 @@ const SessionDetail = ({ sessionId, fps }) => {
             borderBottom: '2px solid var(--border)',
             marginBottom: 2,
           }}>
-            <span>#</span><span>Frame</span><span>Time</span><span>Plate / Location</span><span style={{ textAlign: 'right' }}>Confidence</span>
+            <span>#</span><span>Photo</span><span>Frame</span><span>Time</span><span>Plate / Location</span><span style={{ textAlign: 'right' }}>Confidence</span>
           </div>
           {accidents.map((acc, i) => (
-            <AccidentRow key={acc.id ?? i} acc={acc} fps={efFps} idx={i} />
+            <AccidentRow key={acc.id ?? i} acc={acc} fps={efFps} idx={i} setFullScreenImage={setFullScreenImage} />
           ))}
         </div>
       ) : (
@@ -133,6 +142,7 @@ const Archive = () => {
   const [error, setError]                   = useState(null);
   const [searchQuery, setSearchQuery]       = useState('');
   const [selectedSession, setSelectedSession] = useState(null);
+  const [fullScreenImage, setFullScreenImage] = useState(null);
 
   useEffect(() => { fetchHistory(); fetchStats(); }, []);
 
@@ -281,7 +291,7 @@ const Archive = () => {
                       {isOpen && (
                         <tr>
                           <td colSpan="7" style={{ padding: 0, background: 'var(--bg-secondary)', borderTop: '1px solid var(--border)' }}>
-                            <SessionDetail sessionId={session.id} fps={session.fps} />
+                            <SessionDetail sessionId={session.id} fps={session.fps} setFullScreenImage={setFullScreenImage} />
                           </td>
                         </tr>
                       )}
@@ -299,6 +309,24 @@ const Archive = () => {
           )}
         </div>
       </div>
+
+      {/* ── Fullscreen Image Modal ── */}
+      {fullScreenImage && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 10000, background: 'rgba(0,0,0,0.9)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(5px)'
+        }} onClick={() => setFullScreenImage(null)}>
+          <img src={fullScreenImage} alt="Fullscreen Accident" style={{ maxWidth: '90%', maxHeight: '90%', borderRadius: '8px', boxShadow: '0 10px 25px rgba(0,0,0,0.5)' }} />
+          <button style={{
+            position: 'absolute', top: '2rem', right: '3rem', background: 'rgba(255,255,255,0.1)', 
+            border: '1px solid rgba(255,255,255,0.2)', color: 'white', padding: '0.5rem 1rem', 
+            borderRadius: '8px', cursor: 'pointer', fontWeight: 600, fontSize: '1rem'
+          }} onClick={(e) => { e.stopPropagation(); setFullScreenImage(null); }}>
+            ✕ Close
+          </button>
+        </div>
+      )}
+
     </div>
   );
 };

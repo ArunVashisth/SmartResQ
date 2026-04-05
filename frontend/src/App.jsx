@@ -10,11 +10,49 @@ import TechStack from './views/TechStack/index.jsx';
 import Settings from './views/Settings';
 import Support from './views/Support';
 import Developer from './views/Developer';
+import Profile from './views/Profile';
+import Auth from './views/Auth';
+import AdminPanel from './views/AdminPanel';
+import PendingApproval from './views/PendingApproval';
 import { useSocket } from './hooks/useSocket';
 
 function App() {
   const [activeView, setActiveView] = useState('overview');
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [userRole, setUserRole] = useState('user');
+  const [accountStatus, setAccountStatus] = useState('approved');
+  const [isVerifying, setIsVerifying] = useState(true);
+  
   const { socket, dashboardState, videoAnalysisState, resetVideoAnalysis, emitAction, isConnected } = useSocket();
+
+  React.useEffect(() => {
+    const token = localStorage.getItem('auth_token');
+    if (!token) {
+      setIsVerifying(false);
+      return;
+    }
+    fetch('/api/auth/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token })
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data.success) {
+        setIsAuthenticated(true);
+        setUserRole(data.role || 'user');
+        setAccountStatus(data.account_status || 'approved');
+        localStorage.setItem('user_role', data.role || 'user');
+        localStorage.setItem('account_status', data.account_status || 'approved');
+      } else {
+        localStorage.removeItem('auth_token');
+        localStorage.removeItem('user_role');
+        localStorage.removeItem('account_status');
+      }
+      setIsVerifying(false);
+    })
+    .catch(() => setIsVerifying(false));
+  }, []);
 
   const handleStart = async () => {
     try {
@@ -40,6 +78,8 @@ function App() {
           onStart={handleStart} 
           onSwitchAnalysis={() => setActiveView('video-analysis')} 
         />;
+      case 'profile':
+        return <Profile />;
       case 'monitoring':     
         return <Monitoring dashboardState={dashboardState} />;
       case 'video-analysis': 
@@ -60,14 +100,50 @@ function App() {
         return <Support />;
       case 'developer':
         return <Developer />;
+      case 'admin':
+        return userRole === 'admin' ? <AdminPanel /> : <Overview dashboardState={dashboardState} />;
       default:               
         return <Overview dashboardState={dashboardState} onStart={handleStart} onSwitchAnalysis={() => setActiveView('video-analysis')} />;
     }
   };
 
+  const handleLogout = () => {
+    localStorage.removeItem('auth_token');
+    localStorage.removeItem('user_role');
+    localStorage.removeItem('account_status');
+    setIsAuthenticated(false);
+    setUserRole('user');
+    setAccountStatus('approved');
+  };
+
+  if (isVerifying) return <div style={{ height: '100vh', background: '#0f172a' }}></div>;
+
+  if (!isAuthenticated) {
+    return <Auth onLogin={(token, role, status) => {
+      localStorage.setItem('auth_token', token);
+      localStorage.setItem('user_role', role || 'user');
+      localStorage.setItem('account_status', status || 'approved');
+      setUserRole(role || 'user');
+      setAccountStatus(status || 'approved');
+      setIsAuthenticated(true);
+    }} />;
+  }
+
+  // Block non-approved users — show the waiting/rejected page instead
+  if (accountStatus !== 'approved' && userRole !== 'admin') {
+    return (
+      <PendingApproval
+        accountStatus={accountStatus}
+        rejectionReason={localStorage.getItem('rejection_reason') || ''}
+        onStatusChange={(s) => setAccountStatus(s)}
+        onLogout={handleLogout}
+      />
+    );
+  }
+
   return (
     <div className="dashboard-wrapper">
-      <Sidebar activeView={activeView} setActiveView={setActiveView} />
+      <Sidebar activeView={activeView} setActiveView={setActiveView} onLogout={handleLogout} userRole={userRole} accountStatus={accountStatus} />
       
       <main className="main-view">
         <TopNav 
@@ -75,6 +151,7 @@ function App() {
           onStart={handleStart}
           onStop={handleStop}
           isRunning={dashboardState.is_running}
+          onLogout={handleLogout}
         />
         
         <div className="content-area">

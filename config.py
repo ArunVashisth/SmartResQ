@@ -38,6 +38,16 @@ class Config:
     # Fast2SMS Configuration
     FAST2SMS_API_KEY = os.getenv("FAST2SMS_API_KEY")
     
+    # MongoDB Configuration
+    MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017/smartresq")
+
+    # Email / SMTP Configuration (for OTP)
+    SMTP_HOST     = os.getenv("SMTP_HOST", "smtp.gmail.com")
+    SMTP_PORT     = int(os.getenv("SMTP_PORT", "587"))
+    SMTP_USER     = os.getenv("SMTP_USER", "")   # your Gmail address
+    SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")  # Gmail App Password
+    OTP_EXPIRE_SECONDS = int(os.getenv("OTP_EXPIRE_SECONDS", "600"))  # 10 min
+    
     # Directory Configuration
     ACCIDENT_PHOTOS_DIR = "accident_photos"
     PLATE_DETECTION_FRAMES_DIR = "plate_detection_frames"

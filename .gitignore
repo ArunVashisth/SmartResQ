@@ -23,6 +23,7 @@ wheels/
 .installed.cfg
 *.egg
 MANIFEST
+setup_admin.py
 
 # Virtual environments
 venv/

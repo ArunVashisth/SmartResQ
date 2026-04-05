@@ -1,12 +1,17 @@
 import React, { useState } from 'react';
 
-const Sidebar = ({ activeView, setActiveView }) => {
+const Sidebar = ({ activeView, setActiveView, userRole }) => {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const menuItems = [
     { id: 'overview', label: 'Overview', icon: (
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" />
         <rect x="3" y="14" width="7" height="7" /><rect x="14" y="14" width="7" height="7" />
+      </svg>
+    )},
+    { id: 'profile', label: 'My Profile', icon: (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
       </svg>
     )},
     { id: 'monitoring', label: 'Monitoring', icon: (
@@ -48,47 +53,120 @@ const Sidebar = ({ activeView, setActiveView }) => {
         <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
       </svg>
     )},
+    { id: 'admin', label: 'Admin Panel', adminOnly: true, icon: (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+      </svg>
+    )},
   ];
+
+  const visibleMenuItems = menuItems.filter(item => {
+    if (item.adminOnly) return userRole === 'admin';
+    return true;
+  });
 
   return (
     <aside className={`sidebar ${isCollapsed ? 'collapsed' : ''}`}>
-      <div className="sidebar-header">
-        <a href="#" className="sidebar-logo">
-          <div className="logo-glow">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-            </svg>
+      <div className="sidebar-header" style={{ 
+        padding: isCollapsed ? '1.5rem 0' : '2rem 1.5rem 1rem',
+        display: 'flex', 
+        justifyContent: isCollapsed ? 'center' : 'flex-start',
+        alignItems: 'center',
+        position: 'relative',
+        marginBottom: '1.5rem',
+        minHeight: '60px'
+      }}>
+        {!isCollapsed && (
+          <div style={{ 
+            fontSize: '1.25rem', 
+            fontWeight: 800, 
+            color: '#0F172A', 
+            letterSpacing: '-0.5px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem'
+          }}>
+            <div style={{ width: '8px', height: '24px', background: '#2563EB', borderRadius: '4px' }} />
+            SmartResQ
           </div>
-          <div className="logo-text">SmartResQ</div>
-        </a>
-        <button className="collapse-btn" onClick={() => setIsCollapsed(!isCollapsed)} title={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}>
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        )}
+        <button 
+          onClick={() => setIsCollapsed(!isCollapsed)} 
+          title={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
+          style={{
+            width: '32px',
+            height: '32px',
+            borderRadius: '50%',
+            background: '#ffffff',
+            border: '1px solid #E2E8F0',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+            color: '#2563EB',
+            zIndex: 35,
+            padding: 0,
+            outline: 'none',
+            position: isCollapsed ? 'static' : 'absolute',
+            right: '-16px',
+            top: '50%',
+            transform: isCollapsed ? 'none' : 'translateY(-50%)',
+          }}
+          onMouseOver={(e) => { e.currentTarget.style.transform = isCollapsed ? 'scale(1.1)' : 'translateY(-50%) scale(1.1)'; e.currentTarget.style.borderColor = '#2563EB'; }}
+          onMouseOut={(e) => { e.currentTarget.style.transform = isCollapsed ? 'none' : 'translateY(-50%)'; e.currentTarget.style.borderColor = '#E2E8F0'; }}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
             {isCollapsed ? (
-              <>
-                <polyline points="13 17 18 12 13 7" />
-                <polyline points="6 17 11 12 6 7" />
-              </>
+              <polyline points="9 18 15 12 9 6" />
             ) : (
-              <>
-                <polyline points="11 17 6 12 11 7" />
-                <polyline points="18 17 13 12 18 7" />
-              </>
+              <polyline points="15 18 9 12 15 6" />
             )}
           </svg>
         </button>
       </div>
 
-      <nav className="nav-menu">
-        {menuItems.map((item) => (
-          <div 
-            key={item.id} 
-            className={`nav-item ${activeView === item.id ? 'active' : ''}`}
-            onClick={() => setActiveView(item.id)}
-          >
-            <span className="nav-icon">{item.icon}</span>
-            <span>{item.label}</span>
-          </div>
-        ))}
+      <nav className="nav-menu" style={{ overflowY: 'auto', flex: 1, paddingBottom: '0.5rem' }}>
+        {visibleMenuItems.map((item) => {
+          const isAdminItem = item.adminOnly;
+          return (
+            <React.Fragment key={item.id}>
+              {isAdminItem && (
+                <div style={{
+                  margin: '0.5rem 0.75rem', borderTop: '1px solid rgba(245,158,11,0.2)',
+                  paddingTop: '0.5rem'
+                }}>
+                  {!isCollapsed && (
+                    <div style={{ fontSize: '0.6rem', fontWeight: 700, color: '#F59E0B', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '0.4rem', paddingLeft: '0.5rem', opacity: 0.7 }}>
+                      Admin Zone
+                    </div>
+                  )}
+                </div>
+              )}
+              <div
+                className={`nav-item ${activeView === item.id ? 'active' : ''}`}
+                onClick={() => setActiveView(item.id)}
+                style={isAdminItem ? {
+                  background: activeView === item.id 
+                    ? 'linear-gradient(135deg, rgba(245,158,11,0.25), rgba(217,119,6,0.15))' 
+                    : 'transparent',
+                  border: activeView === item.id ? '1px solid rgba(245,158,11,0.3)' : '1px solid transparent',
+                  color: activeView === item.id ? '#F59E0B' : '#D97706',
+                } : {}}
+              >
+                <span className="nav-icon" style={isAdminItem ? { color: '#F59E0B' } : {}}>{item.icon}</span>
+                <span>{item.label}</span>
+                {isAdminItem && !isCollapsed && (
+                  <span style={{ 
+                    marginLeft: 'auto', fontSize: '0.6rem', fontWeight: 800, background: '#F59E0B', 
+                    color: '#000', padding: '1px 6px', borderRadius: '100px'
+                  }}>ROOT</span>
+                )}
+              </div>
+            </React.Fragment>
+          );
+        })}
       </nav>
 
       <div className="sidebar-footer">

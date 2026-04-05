@@ -47,6 +47,358 @@ from flask import send_from_directory
 def serve_archive(filename):
     return send_from_directory('archives', filename)
 
+from pymongo import MongoClient
+import pymongo
+from werkzeug.security import generate_password_hash, check_password_hash
+
+try:
+    MONGO_URI = Config.MONGO_URI
+except:
+    MONGO_URI = os.getenv("MONGO_URI", "mongodb+srv://arunvashisth80_db_user:arun8080@smartresq.fii5rvi.mongodb.net/")
+
+mongo_client = MongoClient(MONGO_URI)
+users_col = mongo_client["smartresq"].users
+otp_col   = mongo_client["smartresq"].otp_store
+
+# ensure unique index on username
+try:
+    users_col.create_index("username", unique=True)
+except:
+    pass
+
+# TTL index so MongoDB auto-deletes expired OTPs
+try:
+    otp_col.create_index("expires_at", expireAfterSeconds=0)
+except:
+    pass
+
+# ─────────────────────────────────────────────
+# OTP HELPERS
+# ─────────────────────────────────────────────
+import random
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+
+def _send_otp_email(to_email: str, otp: str) -> bool:
+    """Send a 6-digit OTP to the given email via Gmail SMTP."""
+    smtp_user = Config.SMTP_USER
+    smtp_pass = Config.SMTP_PASSWORD
+    if not smtp_user or smtp_pass == 'your_gmail_app_password_here' or not smtp_pass:
+        print("⚠ SMTP not configured — OTP:", otp, "(development mode)")
+        return True  # Dev mode: pretend it was sent, log OTP to console
+
+    try:
+        msg = MIMEMultipart("alternative")
+        msg["Subject"] = "Smart Resq — Your Verification Code"
+        msg["From"]    = f"Smart Resq <{smtp_user}>"
+        msg["To"]      = to_email
+
+        html = f"""
+        <div style="font-family:Inter,sans-serif;max-width:480px;margin:0 auto;background:#ffffff;border-radius:16px;border:1px solid #E2E8F0;overflow:hidden">
+          <div style="background:linear-gradient(135deg,#2563EB,#06b6d4);padding:2rem;text-align:center">
+            <h1 style="color:white;margin:0;font-size:1.5rem;font-weight:800">Smart Resq</h1>
+            <p style="color:rgba(255,255,255,0.8);margin:0.4rem 0 0">Security Verification</p>
+          </div>
+          <div style="padding:2rem;text-align:center">
+            <p style="color:#475569;font-size:0.95rem;margin-bottom:1.5rem">Your one-time verification code is:</p>
+            <div style="background:#F8FAFC;border:2px dashed #E2E8F0;border-radius:12px;padding:1.5rem;display:inline-block;min-width:200px">
+              <span style="font-size:2.5rem;font-weight:900;letter-spacing:0.5rem;color:#0F172A">{otp}</span>
+            </div>
+            <p style="color:#94A3B8;font-size:0.8rem;margin-top:1.5rem">This code expires in <strong>10 minutes</strong>.<br>Do not share it with anyone.</p>
+          </div>
+          <div style="background:#F8FAFC;padding:1rem;text-align:center;border-top:1px solid #E2E8F0">
+            <p style="color:#94A3B8;font-size:0.75rem;margin:0">If you didn't request this, please ignore this email.</p>
+          </div>
+        </div>
+        """
+        msg.attach(MIMEText(html, "html"))
+
+        with smtplib.SMTP(Config.SMTP_HOST, Config.SMTP_PORT, timeout=10) as server:
+            server.ehlo()
+            server.starttls()
+            server.login(smtp_user, smtp_pass)
+            server.sendmail(smtp_user, to_email, msg.as_string())
+        return True
+    except Exception as e:
+        print(f"⚠ Email send failed: {e}")
+        return False
+
+@app.route('/api/auth/send-otp', methods=['POST'])
+def send_otp():
+    """Generate a 6-digit OTP, store it, and email it to the user."""
+    data  = request.get_json() or {}
+    email = data.get('email', '').strip().lower()
+    if not email:
+        return jsonify({'success': False, 'error': 'Email is required'}), 400
+
+    # Block if email already registered
+    if users_col.find_one({'username': email}):
+        return jsonify({'success': False, 'error': 'This email is already registered. Please log in.'}), 400
+
+    otp = str(random.randint(100000, 999999))
+    expires_at = datetime.utcnow() + __import__('datetime').timedelta(seconds=Config.OTP_EXPIRE_SECONDS)
+
+    # Upsert — replace any existing OTP for this email
+    otp_col.update_one(
+        {'email': email},
+        {'$set': {'otp': otp, 'expires_at': expires_at, 'verified': False}},
+        upsert=True
+    )
+
+    sent = _send_otp_email(email, otp)
+    if not sent:
+        return jsonify({'success': False, 'error': 'Failed to send OTP email. Check SMTP config.'}), 500
+
+    return jsonify({'success': True, 'message': f'OTP sent to {email}'})
+
+@app.route('/api/auth/verify-otp', methods=['POST'])
+def verify_otp():
+    """Verify the OTP for an email — marks it as verified if correct."""
+    data  = request.get_json() or {}
+    email = data.get('email', '').strip().lower()
+    otp   = data.get('otp', '').strip()
+    if not email or not otp:
+        return jsonify({'success': False, 'error': 'Email and OTP are required'}), 400
+
+    record = otp_col.find_one({'email': email})
+    if not record:
+        return jsonify({'success': False, 'error': 'OTP not found. Please request a new one.'}), 400
+    if record.get('otp') != otp:
+        return jsonify({'success': False, 'error': 'Incorrect OTP. Please try again.'}), 400
+
+    # Mark as verified
+    otp_col.update_one({'email': email}, {'$set': {'verified': True}})
+    return jsonify({'success': True, 'message': 'OTP verified successfully'})
+
+@app.route('/api/auth/signup', methods=['POST'])
+def auth_signup():
+    data       = request.get_json() or {}
+    username   = data.get('username', '').strip().lower()
+    password   = data.get('password')
+    first_name = data.get('first_name', '')
+    last_name  = data.get('last_name', '')
+    age        = data.get('age', 0)
+
+    role = data.get('role', 'user')
+    if role not in ['admin', 'user']:
+        role = 'user'
+
+    if not username or not password:
+        return jsonify({'success': False, 'error': 'Missing credentials'}), 400
+
+    # ── Enforce OTP verification ──
+    otp_record = otp_col.find_one({'email': username})
+    if not otp_record or not otp_record.get('verified'):
+        return jsonify({'success': False, 'error': 'Email not verified. Please complete OTP verification first.'}), 403
+
+    try:
+        hashed = generate_password_hash(password)
+        # Admins are auto-approved; regular users start as pending
+        account_status = 'approved' if role == 'admin' else 'pending'
+        users_col.insert_one({
+            'username':       username,
+            'password_hash':  hashed,
+            'first_name':     first_name,
+            'last_name':      last_name,
+            'age':            age,
+            'role':           role,
+            'account_status': account_status,
+            'token':          None
+        })
+        # Clean up the used OTP
+        otp_col.delete_one({'email': username})
+        return jsonify({'success': True, 'message': 'User created successfully'})
+    except pymongo.errors.DuplicateKeyError:
+        return jsonify({'success': False, 'error': 'Username already exists'}), 400
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/auth/login', methods=['POST'])
+def auth_login():
+    data = request.get_json() or {}
+    username = data.get('username')
+    password = data.get('password')
+    if not username or not password:
+        return jsonify({'success': False, 'error': 'Missing credentials'}), 400
+    
+    user = users_col.find_one({'username': username})
+    if user and check_password_hash(user['password_hash'], password):
+        token = str(uuid.uuid4())
+        users_col.update_one({'_id': user['_id']}, {'$set': {'token': token}})
+        return jsonify({
+            'success': True,
+            'token': token,
+            'username': user['username'],
+            'role': user.get('role', 'user'),
+            'account_status': user.get('account_status', 'approved')
+        })
+    return jsonify({'success': False, 'error': 'Invalid username or password'}), 401
+
+@app.route('/api/auth/verify', methods=['POST'])
+def auth_verify():
+    data = request.get_json() or {}
+    token = data.get('token')
+    if not token:
+        return jsonify({'success': False})
+    
+    user = users_col.find_one({'token': token})
+    if user:
+        return jsonify({
+            'success': True,
+            'username': user['username'],
+            'role': user.get('role', 'user'),
+            'account_status': user.get('account_status', 'approved')
+        })
+    return jsonify({'success': False})
+
+def get_current_user():
+    token = request.headers.get('Authorization', '').replace('Bearer ', '')
+    if not token:
+        return None
+    return users_col.find_one({'token': token})
+
+import gridfs
+import base64
+fs = gridfs.GridFS(mongo_client["smartresq"])
+
+@app.route('/api/user/profile', methods=['GET'])
+def get_profile():
+    user = get_current_user()
+    if not user:
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    return jsonify({
+        'success': True,
+        'username': user.get('username'),
+        'first_name': user.get('first_name', ''),
+        'last_name': user.get('last_name', ''),
+        'age': user.get('age', ''),
+        'profile_pic': user.get('profile_pic_url', None),
+        'role': user.get('role', 'user')
+    })
+
+@app.route('/api/user/profile', methods=['POST'])
+def update_profile():
+    user = get_current_user()
+    if not user:
+        return jsonify({'error': 'Unauthorized'}), 401
+        
+    data = request.get_json() or {}
+    updates = {}
+    if 'first_name' in data: updates['first_name'] = data['first_name']
+    if 'last_name' in data: updates['last_name'] = data['last_name']
+    if 'age' in data: updates['age'] = data['age']
+    
+    if 'profile_pic_base64' in data and data['profile_pic_base64']:
+        try:
+            if ',' in data['profile_pic_base64']:
+                header, encoded = data['profile_pic_base64'].split(",", 1)
+            else:
+                encoded = data['profile_pic_base64']
+            
+            img_data = base64.b64decode(encoded)
+            file_id = fs.put(img_data, content_type="image/jpeg", user_id=str(user['_id']))
+            updates['profile_pic_url'] = f"/api/archives/image/{file_id}"
+        except Exception as e:
+            print("Failed to save profile picture:", e)
+            
+    if updates:
+        users_col.update_one({'_id': user['_id']}, {'$set': updates})
+        
+    return jsonify({'success': True, 'profile_pic': updates.get('profile_pic_url', user.get('profile_pic_url'))})
+
+@app.route('/api/admin/users', methods=['GET'])
+def admin_get_users():
+    user = get_current_user()
+    if not user or user.get('role') != 'admin':
+        return jsonify({'error': 'Unauthorized'}), 403
+    
+    users = list(users_col.find({}, {'password_hash': 0, 'token': 0}))
+    for u in users:
+        u['_id'] = str(u['_id'])
+    return jsonify({'success': True, 'users': users})
+
+from bson import ObjectId
+
+@app.route('/api/admin/users/<user_id>', methods=['DELETE'])
+def admin_delete_user(user_id):
+    user = get_current_user()
+    if not user or user.get('role') != 'admin':
+        return jsonify({'error': 'Unauthorized'}), 403
+        
+    if str(user['_id']) == user_id:
+        return jsonify({'error': 'Cannot delete your own admin account'}), 400
+        
+    users_col.delete_one({'_id': ObjectId(user_id)})
+    return jsonify({'success': True})
+
+@app.route('/api/admin/users/<user_id>/role', methods=['POST'])
+def admin_update_user_role(user_id):
+    user = get_current_user()
+    if not user or user.get('role') != 'admin':
+        return jsonify({'error': 'Unauthorized'}), 403
+        
+    data = request.get_json() or {}
+    new_role = data.get('role')
+    if new_role not in ['admin', 'user']:
+        return jsonify({'error': 'Invalid role'}), 400
+        
+    users_col.update_one({'_id': ObjectId(user_id)}, {'$set': {'role': new_role}})
+    return jsonify({'success': True})
+
+@app.route('/api/admin/clear-archive', methods=['POST'])
+def admin_clear_archive():
+    user = get_current_user()
+    if not user or user.get('role') != 'admin':
+        return jsonify({'error': 'Unauthorized'}), 403
+        
+    archive.video_analysis.delete_many({})
+    archive.accidents.delete_many({})
+    return jsonify({'success': True, 'message': 'All archive history cleared successfully'})
+
+@app.route('/api/admin/users/<user_id>/approve', methods=['POST'])
+def admin_approve_user(user_id):
+    user = get_current_user()
+    if not user or user.get('role') != 'admin':
+        return jsonify({'error': 'Unauthorized'}), 403
+    users_col.update_one({'_id': ObjectId(user_id)}, {'$set': {'account_status': 'approved'}})
+    return jsonify({'success': True})
+
+@app.route('/api/admin/users/<user_id>/reject', methods=['POST'])
+def admin_reject_user(user_id):
+    user = get_current_user()
+    if not user or user.get('role') != 'admin':
+        return jsonify({'error': 'Unauthorized'}), 403
+    data = request.get_json() or {}
+    reason = data.get('reason', 'Your account access request has been rejected.')
+    users_col.update_one({'_id': ObjectId(user_id)}, {'$set': {'account_status': 'rejected', 'rejection_reason': reason}})
+    return jsonify({'success': True})
+
+@app.route('/api/auth/request-access', methods=['POST'])
+def request_access():
+    """Rejected user requests access again — resets to pending."""
+    user = get_current_user()
+    if not user:
+        return jsonify({'error': 'Unauthorized'}), 401
+    if user.get('account_status') != 'rejected':
+        return jsonify({'error': 'Only rejected accounts can re-request access.'}), 400
+    users_col.update_one({'_id': user['_id']}, {'$set': {'account_status': 'pending', 'rejection_reason': None}})
+    return jsonify({'success': True, 'message': 'Access re-requested. Awaiting admin approval.'})
+
+@app.route('/api/auth/status', methods=['GET'])
+def auth_status():
+    """Return current account_status for a logged-in user."""
+    user = get_current_user()
+    if not user:
+        return jsonify({'error': 'Unauthorized'}), 401
+    return jsonify({
+        'success': True,
+        'account_status': user.get('account_status', 'approved'),
+        'rejection_reason': user.get('rejection_reason', ''),
+        'role': user.get('role', 'user')
+    })
+
 # Global state
 dashboard_state: Dict[str, Any] = {
     'system_status': 'stopped',
@@ -146,13 +498,23 @@ def get_archives():
     history = archive.get_analysis_history(limit=50)
     return jsonify({'history': history})
 
-@app.route('/api/archives/<int:analysis_id>')
+@app.route('/api/archives/<analysis_id>')
 def get_archive_detail(analysis_id):
     """Get details of a specific analysis session"""
     details = archive.get_analysis_details(analysis_id)
     if details:
         return jsonify(details)
     return jsonify({'error': 'Analysis not found'}), 404
+
+@app.route('/api/archives/image/<image_id>')
+def get_archive_image(image_id):
+    """Serve image directly from MongoDB GridFS"""
+    from flask import Response
+    img_data, content_type = archive.get_image(image_id)
+    if not img_data:
+        return jsonify({'error': 'Image not found'}), 404
+        
+    return Response(img_data, mimetype=content_type or 'image/jpeg')
 
 @app.route('/api/stats')
 def get_total_stats():
@@ -827,12 +1189,14 @@ def _run_video_analysis(video_path, threshold, frame_skip):
                 # Record in archive
                 try:
                     if analysis_session_id:
-                        archive.record_accident(
+                        acc_id, photo_path = archive.record_accident(
                             analysis_session_id, 
                             frame_count, 
                             fround(float(probability), 2), 
                             frame
                         )
+                        if photo_path:
+                            accident_entry['photo_path'] = photo_path
                 except Exception as archive_err:
                     print(f"⚠ Archive error recording accident: {archive_err}")
 

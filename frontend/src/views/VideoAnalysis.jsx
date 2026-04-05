@@ -217,6 +217,7 @@ const VideoAnalysis = ({ videoAnalysisState, resetVideoAnalysis }) => {
   const [error, setError]                   = useState(null);
   const [showReplay, setShowReplay]         = useState(false);
   const [capturedFrames, setCapturedFrames] = useState([]);
+  const [fullScreenImage, setFullScreenImage] = useState(null);
 
   const fileInputRef  = useRef(null);
   const liveFrameRef  = useRef(null);
@@ -554,7 +555,7 @@ const VideoAnalysis = ({ videoAnalysisState, resetVideoAnalysis }) => {
                     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                     animation: 'fadeIn 0.3s ease'
                   }}>
-                    <div>
+                    <div style={{ flex: 1 }}>
                       <div style={{ fontWeight: 700, fontSize: '0.85rem' }}>
                         Accident @ {acc.timestamp_str || (acc.timestamp_sec != null ? acc.timestamp_sec.toFixed(2) + 's' : '—')}
                       </div>
@@ -562,6 +563,17 @@ const VideoAnalysis = ({ videoAnalysisState, resetVideoAnalysis }) => {
                         Frame #{acc.frame_number || acc.frame}
                       </div>
                     </div>
+                    {acc.photo_path && (
+                      <div style={{ 
+                        marginRight: '1rem', width: '56px', height: '40px', 
+                        borderRadius: '4px', overflow: 'hidden', background: '#e2e8f0',
+                        border: '1px solid var(--border)', cursor: 'pointer'
+                      }}
+                      onClick={() => setFullScreenImage(acc.photo_path)}
+                      >
+                        <img src={acc.photo_path} alt="Accident Frame" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      </div>
+                    )}
                     <div style={{ textAlign: 'right' }}>
                       <span style={{ color: 'var(--danger)', fontWeight: 700, fontSize: '0.85rem' }}>
                         {acc.probability?.toFixed(1)}%
@@ -585,6 +597,23 @@ const VideoAnalysis = ({ videoAnalysisState, resetVideoAnalysis }) => {
           onClose={() => setShowReplay(false)}
         />
       )}
+      {/* ── Fullscreen Image Modal ── */}
+      {fullScreenImage && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 10000, background: 'rgba(0,0,0,0.9)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(5px)'
+        }} onClick={() => setFullScreenImage(null)}>
+          <img src={fullScreenImage} alt="Fullscreen Accident" style={{ maxWidth: '90%', maxHeight: '90%', borderRadius: '8px', boxShadow: '0 10px 25px rgba(0,0,0,0.5)' }} />
+          <button style={{
+            position: 'absolute', top: '2rem', right: '3rem', background: 'rgba(255,255,255,0.1)', 
+            border: '1px solid rgba(255,255,255,0.2)', color: 'white', padding: '0.5rem 1rem', 
+            borderRadius: '8px', cursor: 'pointer', fontWeight: 600, fontSize: '1rem'
+          }} onClick={(e) => { e.stopPropagation(); setFullScreenImage(null); }}>
+            ✕ Close
+          </button>
+        </div>
+      )}
+
     </div>
   );
 };
