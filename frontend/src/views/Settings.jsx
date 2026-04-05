@@ -1,6 +1,42 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 
 const Settings = () => {
+    const [cameras, setCameras] = useState([]);
+
+    const fetchCameras = async () => {
+        try {
+            const res = await fetch('/api/cameras', {
+                headers: { 'Authorization': `Bearer ${localStorage.getItem('auth_token')}` }
+            });
+            const data = await res.json();
+            if (data.success) {
+                setCameras(data.cameras);
+            }
+        } catch (e) {
+            console.error('Failed to fetch cameras', e);
+        }
+    };
+
+    useEffect(() => {
+        fetchCameras();
+    }, []);
+
+    const renameCamera = async (id, newName) => {
+        if (!newName.trim()) return;
+        try {
+            const res = await fetch(`/api/cameras/${id}/rename`, {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${localStorage.getItem('auth_token')}` 
+                },
+                body: JSON.stringify({ name: newName })
+            });
+            const data = await res.json();
+            if (data.success) fetchCameras();
+        } catch(e) { console.error('Failed to rename camera', e); }
+    };
+
     return (
         <div id="view-settings" className="dashboard-view active">
             <div className="settings-page">
@@ -24,12 +60,14 @@ const Settings = () => {
                 <div className="settings-content">
                     <div className="settings-group">
                         <h4>Vision Parameters</h4>
-                        <div className="settings-grid-3">
+                        <div className="settings-grid-3" style={{ marginBottom: '1.5rem' }}>
                             <div className="input-group">
-                                <label>INPUT SOURCE</label>
+                                <label>DEFAULT INPUT SOURCE KERNEL</label>
                                 <select id="setting-source" className="premium-input">
-                                    <option value="0">Camera 01 (Integrated)</option>
-                                    <option value="1">Camera 02 (Auxiliary)</option>
+                                    <option value="primary">System Kernel (Primary Hardware)</option>
+                                    {cameras.map((c, i) => (
+                                        <option key={c._id} value={c._id}>{c.name}</option>
+                                    ))}
                                 </select>
                             </div>
                             <div className="input-group">
@@ -41,8 +79,48 @@ const Settings = () => {
                                 <select className="premium-input">
                                     <option>EASY_OCR_V2</option>
                                     <option>TESSERACT_LTS</option>
+                                    <option>VISION_TRANSFORMER (BETA)</option>
                                 </select>
                             </div>
+                        </div>
+
+                        {/* Camera Management Sub-section */}
+                        <div className="settings-subgroup" style={{ background: 'var(--bg-page)', padding: '1.5rem', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border)' }}>
+                            <h5 style={{ marginTop: 0, marginBottom: '1rem', color: 'var(--text-main)', fontSize: '0.85rem', fontWeight: 600, letterSpacing: '0.5px' }}>SENSOR IDENTITY MANAGEMENT</h5>
+                            {cameras.length === 0 ? (
+                                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>No secondary sensors integrated yet. Add them in the Monitoring tab.</div>
+                            ) : (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                    {cameras.map(cam => (
+                                        <div key={cam._id} style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                                            <div className="input-group" style={{ flex: 1, margin: 0 }}>
+                                                <input 
+                                                    type="text" 
+                                                    className="premium-input" 
+                                                    defaultValue={cam.name}
+                                                    placeholder="Enter sensor name..."
+                                                    onKeyDown={(e) => {
+                                                        if (e.key === 'Enter') {
+                                                            renameCamera(cam._id, e.target.value);
+                                                            e.target.blur();
+                                                        }
+                                                    }}
+                                                    onBlur={(e) => renameCamera(cam._id, e.target.value)}
+                                                />
+                                            </div>
+                                            <div style={{ flex: 1, fontSize: '0.75rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                URL: {cam.url}
+                                            </div>
+                                            <button 
+                                                className="btn btn-primary btn-sm" 
+                                                onClick={(e) => renameCamera(cam._id, e.currentTarget.parentElement.querySelector('input').value)}
+                                            >
+                                                Save
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
                         </div>
                     </div>
 

@@ -22,8 +22,19 @@ function App() {
   const [userRole, setUserRole] = useState('user');
   const [accountStatus, setAccountStatus] = useState('approved');
   const [isVerifying, setIsVerifying] = useState(true);
+  const [showOfflineToast, setShowOfflineToast] = useState(false);
   
   const { socket, dashboardState, videoAnalysisState, resetVideoAnalysis, emitAction, isConnected } = useSocket();
+
+  React.useEffect(() => {
+    if (!isConnected) {
+      setShowOfflineToast(true);
+      const timer = setTimeout(() => setShowOfflineToast(false), 4000);
+      return () => clearTimeout(timer);
+    } else {
+      setShowOfflineToast(false);
+    }
+  }, [isConnected]);
 
   React.useEffect(() => {
     const token = localStorage.getItem('auth_token');
@@ -162,13 +173,29 @@ function App() {
       </main>
 
       {/* Connection Toast */}
-      {!isConnected && (
-        <div className="notification-area" style={{ display: 'block' }}>
-           <div className="toast danger" style={{ background: 'var(--danger)', color: 'white', padding: '1rem', borderRadius: '8px', margin: '1rem', boxShadow: 'var(--shadow-lg)', fontWeight: 700 }}>
-             OFFLINE: DISCONNECTED FROM INTELLIGENCE HUB
-           </div>
+      <div className="notification-area" style={{ 
+        position: 'fixed', 
+        bottom: '20px', 
+        right: '20px', 
+        zIndex: 9999,
+        pointerEvents: 'none',
+        display: 'block'
+      }}>
+        <div className="toast danger" style={{ 
+          background: 'var(--danger)', 
+          color: 'white', 
+          padding: '1rem', 
+          borderRadius: '8px', 
+          margin: '1rem', 
+          boxShadow: 'var(--shadow-lg)', 
+          fontWeight: 700,
+          transform: showOfflineToast ? 'translateY(0)' : 'translateY(150%)',
+          opacity: showOfflineToast ? 1 : 0,
+          transition: 'all 0.5s cubic-bezier(0.16, 1, 0.3, 1)'
+        }}>
+          OFFLINE: DISCONNECTED FROM INTELLIGENCE HUB
         </div>
-      )}
+      </div>
     </div>
   );
 }

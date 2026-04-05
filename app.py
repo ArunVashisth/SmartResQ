@@ -59,6 +59,7 @@ except:
 mongo_client = MongoClient(MONGO_URI)
 users_col = mongo_client["smartresq"].users
 otp_col   = mongo_client["smartresq"].otp_store
+cameras_col = mongo_client["smartresq"].cameras
 
 # ensure unique index on username
 try:
@@ -398,6 +399,117 @@ def auth_status():
         'rejection_reason': user.get('rejection_reason', ''),
         'role': user.get('role', 'user')
     })
+
+# ─────────────────────────────────────────────
+# CAMERAS Endpoints
+# ─────────────────────────────────────────────
+
+@app.route('/api/cameras', methods=['GET'])
+def get_cameras():
+    user = get_current_user()
+    if not user:
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    cams = list(cameras_col.find({}))
+    for c in cams:
+        c['_id'] = str(c['_id'])
+    return jsonify({'success': True, 'cameras': cams})
+
+@app.route('/api/cameras', methods=['POST'])
+def add_cameras():
+    user = get_current_user()
+    if not user:
+        return jsonify({'error': 'Unauthorized'}), 401
+        
+    data = request.get_json() or {}
+    added = []
+    
+    # Support multiple cameras at once
+    cam_list = data.get('cameras', [])
+    if not cam_list and 'url' in data:
+        cam_list = [data]
+        
+    for cam in cam_list:
+        name = cam.get('name', 'Camera')
+        url = cam.get('url', '').strip()
+        if url:
+            import datetime as dt_module
+            res = cameras_col.insert_one({'name': name, 'url': url, 'created_at': datetime.now(dt_module.timezone.utc)})
+            added.append({'_id': str(res.inserted_id), 'name': name, 'url': url})
+            
+    return jsonify({'success': True, 'added': added, 'message': f'{len(added)} cameras added'})
+
+@app.route('/api/cameras/<camera_id>', methods=['DELETE'])
+def delete_camera(camera_id):
+    user = get_current_user()
+    if not user:
+        return jsonify({'error': 'Unauthorized'}), 401
+        
+    cameras_col.delete_one({'_id': ObjectId(camera_id)})
+    return jsonify({'success': True})
+
+@app.route('/api/cameras/<camera_id>/toggle', methods=['POST'])
+def toggle_camera(camera_id):
+    user = get_current_user()
+    if not user:
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    data = request.get_json() or {}
+    is_active = data.get('is_active', True)
+    
+    cameras_col.update_one(
+        {'_id': ObjectId(camera_id)},
+        {'$set': {'is_active': is_active}}
+    )
+    return jsonify({'success': True, 'is_active': is_active})
+
+@app.route('/api/cameras/<camera_id>/rename', methods=['POST'])
+def rename_camera(camera_id):
+    user = get_current_user()
+    if not user:
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    data = request.get_json() or {}
+    new_name = data.get('name', '').strip()
+    if not new_name:
+        return jsonify({'error': 'Name cannot be empty'}), 400
+        
+    cameras_col.update_one(
+        {'_id': ObjectId(camera_id)},
+        {'$set': {'name': new_name}}
+    )
+    return jsonify({'success': True, 'name': new_name})
+
+def generate_frames_mjpeg(camera_url):
+    from config import Config
+    import time
+    
+    # Wait a bit to not overwhelm system if many load at once
+    time.sleep(0.5) 
+    cap = cv2.VideoCapture(camera_url)
+    
+    while True:
+        success, frame = cap.read()
+        if not success:
+            time.sleep(1)
+            cap = cv2.VideoCapture(camera_url)
+            continue
+            
+        frame = cv2.resize(frame, (640, 360))
+        ret, buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 70])
+        frame_bytes = buffer.tobytes()
+        yield (b'--frame\r\n'
+               b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
+
+from flask import Response
+@app.route('/api/cameras/<camera_id>/feed', methods=['GET'])
+def camera_feed(camera_id):
+    cam = cameras_col.find_one({'_id': ObjectId(camera_id)})
+    if not cam:
+        return "Camera not found", 404
+        
+    return Response(generate_frames_mjpeg(cam['url']), mimetype='multipart/x-mixed-replace; boundary=frame')
+
 
 # Global state
 dashboard_state: Dict[str, Any] = {

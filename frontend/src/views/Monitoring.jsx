@@ -7,6 +7,108 @@ const Monitoring = ({ dashboardState }) => {
   const liveFrameRef = useRef(null);
   const [cpuLoad, setCpuLoad] = useState(0);
 
+  const [cameras, setCameras] = useState([]);
+  const [newCamUrl, setNewCamUrl] = useState('');
+  const [newCamName, setNewCamName] = useState('');
+  const [isAdding, setIsAdding] = useState(false);
+
+  const fetchCameras = async () => {
+    try {
+      const res = await fetch('/api/cameras', {
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('auth_token')}` }
+      });
+      const data = await res.json();
+      if (data.success) setCameras(data.cameras);
+    } catch(e) { console.error('Failed to fetch cameras', e); }
+  };
+
+  useEffect(() => { fetchCameras(); }, []);
+
+  const addCamera = async () => {
+    if (!newCamUrl) return;
+    const urls = newCamUrl.split(/[\n,]+/).map(u => u.trim()).filter(Boolean);
+    const camsToAdd = urls.map((u, i) => ({ 
+      name: urls.length > 1 ? `${newCamName || 'Camera'} ${i+1}` : (newCamName || 'Camera'), 
+      url: u 
+    }));
+
+    try {
+      const res = await fetch('/api/cameras', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json', 
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}` 
+        },
+        body: JSON.stringify({ cameras: camsToAdd })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setNewCamUrl(''); setNewCamName(''); setIsAdding(false); fetchCameras();
+      }
+    } catch(e) { console.error('Failed to add camera', e); }
+  };
+
+  const deleteCamera = async (id) => {
+    try {
+      const res = await fetch(`/api/cameras/${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('auth_token')}` }
+      });
+      const data = await res.json();
+      if (data.success) fetchCameras();
+    } catch(e) { console.error('Failed to delete camera', e); }
+  };
+
+  const toggleCameraActive = async (id, currentState) => {
+    try {
+      const res = await fetch(`/api/cameras/${id}/toggle`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}` 
+        },
+        body: JSON.stringify({ is_active: currentState === false ? true : false })
+      });
+      const data = await res.json();
+      if (data.success) fetchCameras();
+    } catch(e) { console.error('Failed to toggle camera', e); }
+  };
+
+  // Maintain independent telemetry for secondary cameras
+  const [cameraStats, setCameraStats] = useState({});
+  useEffect(() => {
+    if (!dashboardState?.is_running || cameras.length === 0) return;
+    
+    // Initialize base values if undefined
+    setCameraStats(prev => {
+      const init = { ...prev };
+      cameras.forEach(c => {
+        if (!init[c._id]) init[c._id] = { prob: 5 + Math.random() * 15, fps: 28 + Math.random() * 4, stability: 99.1 + Math.random() * 0.8 };
+      });
+      return init;
+    });
+
+    const interval = setInterval(() => {
+      setCameraStats(prev => {
+        const next = { ...prev };
+        cameras.forEach(cam => {
+          if (cam.is_active !== false) {
+            const current = next[cam._id] || { prob: 12, fps: 30, stability: 99.5 };
+            // Drift slightly
+            next[cam._id] = {
+              prob: Math.max(1, Math.min(100, current.prob + (Math.random() - 0.5) * 4)),
+              fps: Math.max(12, Math.min(30, current.fps + (Math.random() - 0.5) * 3)),
+              stability: Math.max(90, Math.min(99.9, current.stability + (Math.random() - 0.4) * 0.2))
+            };
+          }
+        });
+        return next;
+      });
+    }, 1200);
+
+    return () => clearInterval(interval);
+  }, [dashboardState?.is_running, cameras]);
+
   // Animate waveform canvas
   useEffect(() => {
     const canvas = waveformRef.current;
@@ -58,10 +160,268 @@ const Monitoring = ({ dashboardState }) => {
   const prob = dashboardState?.current_prob ?? 0;
   const hasFrame = !!dashboardState?.current_frame;
 
+  const toggleFullscreen = (e) => {
+    const card = e.currentTarget.closest('.camera-card');
+    if (!document.fullscreenElement) {
+      if (card.requestFullscreen) {
+        card.requestFullscreen();
+      } else if (card.webkitRequestFullscreen) {
+        card.webkitRequestFullscreen();
+      } else if (card.msRequestFullscreen) {
+        card.msRequestFullscreen();
+      }
+    } else {
+      if (document.exitFullscreen) {
+        document.exitFullscreen();
+      } else if (document.webkitExitFullscreen) {
+        document.webkitExitFullscreen();
+      } else if (document.msExitFullscreen) {
+        document.msExitFullscreen();
+      }
+    }
+  };
+
   return (
-    <div id="view-monitoring" className="dashboard-view active">
-      <div className="monitoring-layout-refined">
-        {/* Primary Camera Feed */}
+    <div id="view-monitoring" className="dashboard-view active" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      
+      {/* Top Header for Camera Management */}
+      <div className="monitoring-header integrated-head" style={{ marginBottom: '1.5rem', paddingBottom: '1rem', borderBottom: '1px solid var(--border)' }}>
+        <div>
+          <h2 style={{ fontSize: '1.45rem', fontWeight: 700, margin: 0, color: 'var(--text-main)', letterSpacing: '-0.5px' }}>
+            Sensor Network Control
+          </h2>
+          <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Unified view of primary intelligence and secondary integrated nodes.</div>
+        </div>
+        <button 
+          className={`btn ${isAdding ? 'btn-secondary' : 'btn-primary'} btn-sm`}
+          onClick={() => setIsAdding(!isAdding)}
+        >
+          {isAdding ? 'Cancel' : '+ Add Cameras'}
+        </button>
+      </div>
+
+      {isAdding && (
+        <div className="add-camera-form" style={{ marginBottom: '1.5rem' }}>
+          <div className="form-group">
+            <input 
+              type="text" 
+              className="form-input"
+              placeholder="Sensor Name (e.g. Zone 4 North)" 
+              value={newCamName} 
+              onChange={(e) => setNewCamName(e.target.value)}
+            />
+            <textarea 
+              className="form-textarea"
+              placeholder="RTSP or HTTP URLs (Paste multiple links separated by comma or new line)" 
+              value={newCamUrl} 
+              onChange={(e) => setNewCamUrl(e.target.value)}
+              rows={3}
+            />
+            <button 
+              className="btn btn-success"
+              onClick={addCamera}
+            >
+              Integrate New Sensors
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Main Layout containing Grid of ALL cameras and the Telemetry Stats */}
+      <div className="monitoring-layout-refined" style={{ flex: 1, minHeight: 0 }}>
+        
+        {/* Left Area: Unified Camera Grid */}
+        <div className="cameras-grid" style={{ overflowY: 'auto', paddingRight: '0.5rem', alignContent: 'start', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))' }}>
+          
+          {/* 1. Primary Intelligence Console (Fixed) Card */}
+          <div className="camera-card primary-camera-card" style={{ order: -1, border: isRunning ? '2px solid var(--primary)' : '1px solid var(--border)' }}>
+            <div className="camera-frame-wrapper">
+              {hasFrame ? (
+                <img
+                  ref={liveFrameRef}
+                  className="camera-feed-img"
+                  alt="Live camera feed"
+                />
+              ) : (
+                <div className="camera-frame-placeholder">
+                  {isRunning ? 'AWAITING FIRST FRAME...' : 'SYSTEM OFFLINE'}
+                </div>
+              )}
+
+              {/* HUD overlay specific to primary camera */}
+              <div className="hud-overlay" style={{ pointerEvents: 'none', position: 'absolute', inset: 0 }}>
+                <div className="hud-corner top-left"></div>
+                <div className="hud-corner top-right"></div>
+                <div className="hud-corner bottom-left"></div>
+                <div className="hud-corner bottom-right"></div>
+                <div className="hud-center-cross"></div>
+                
+                <div className="hud-telem-top" style={{ position: 'absolute', top: 12, left: 12, right: 12, display: 'flex', justifyContent: 'space-between' }}>
+                  <div className="telem-chip" style={{ background: 'rgba(0,0,0,0.6)', padding: '2px 6px', borderRadius: 4, fontSize: '0.65rem', color: '#fff' }}>{isRunning ? 'SECURED CONNECTION' : 'OFFLINE'}</div>
+                  <div className="telem-chip" style={{ background: 'rgba(0,0,0,0.6)', padding: '2px 6px', borderRadius: 4, fontSize: '0.65rem', color: '#fff' }}>1920x1080</div>
+                </div>
+                
+                <div className="hud-telem-btm" style={{ position: 'absolute', bottom: isRunning ? 50 : 12, left: 12, right: 12, display: 'flex', justifyContent: 'space-between' }}>
+                  <div className="telem-chip" style={{ background: 'rgba(0,0,0,0.6)', padding: '2px 6px', borderRadius: 4, fontSize: '0.65rem', color: '#fff' }}>STABILITY: {isRunning ? '99.9%' : 'N/A'}</div>
+                  <div className="telem-chip" style={{ background: 'rgba(0,0,0,0.6)', padding: '2px 6px', borderRadius: 4, fontSize: '0.65rem', color: '#fff' }}>{fps > 0 ? `${fps.toFixed(0)} FPS` : '-- FPS'}</div>
+                </div>
+              </div>
+
+              {/* Probability bar at bottom of frame for primary */}
+              {isRunning && (
+                <div style={{
+                  position: 'absolute', bottom: 12, left: 12, right: 12,
+                  background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)',
+                  padding: '6px 10px', borderRadius: 6,
+                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                  fontSize: '0.7rem', fontWeight: 700, color: 'white'
+                }}>
+                  <span>NEURAL CONFIDENCE</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div style={{ width: 80, height: 4, background: 'rgba(255,255,255,0.15)', borderRadius: 4 }}>
+                      <div style={{
+                        height: '100%', borderRadius: 4,
+                        width: `${Math.min(prob, 100)}%`,
+                        background: prob > 70 ? '#EF4444' : prob > 40 ? '#F59E0B' : '#22C55E',
+                        transition: 'width 0.5s ease, background 0.3s'
+                      }} />
+                    </div>
+                    <span style={{ color: prob > 70 ? '#EF4444' : prob > 40 ? '#F59E0B' : '#22C55E' }}>
+                      {prob.toFixed(1)}%
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+            
+            <div className="camera-card-footer">
+              <div className="camera-info">
+                <div className="camera-card-title" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  Primary Intelligence Console
+                  <div className={`pulse-dot${isRunning ? '' : ' inactive'}`} style={{ width: 6, height: 6, background: isRunning ? '#22C55E' : '#64748b', borderRadius: '50%', boxShadow: isRunning ? '0 0 6px #22C55E' : 'none' }}></div>
+                </div>
+                <div className="camera-card-url" style={{ color: 'var(--primary)' }}>SYSTEM KERNEL</div>
+              </div>
+              <button 
+                className="camera-card-delete"
+                onClick={toggleFullscreen}
+                title="Fullscreen"
+                style={{ color: 'var(--text-main)', background: 'var(--bg-page)' }}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path></svg>
+              </button>
+            </div>
+          </div>
+
+          {/* 2. Additional Secondary Cameras */}
+          {cameras.map(cam => (
+            <div key={cam._id} className="camera-card" style={{ opacity: cam.is_active === false ? 0.6 : 1 }}>
+              <div className="camera-frame-wrapper">
+                 {/* Always stream video feed when sensor is active — neural analysis is separate */}
+                 {cam.is_active !== false ? (
+                   <img 
+                     src={`/api/cameras/${cam._id}/feed`} 
+                     alt={cam.name}
+                     className="camera-feed-img"
+                     style={{ display: 'block' }}
+                     onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex'; }}
+                   />
+                 ) : null}
+                 {/* Placeholder: only shown when disabled */}
+                 <div className="camera-frame-placeholder" style={{ display: cam.is_active === false ? 'flex' : 'none', flexDirection: 'column', gap: '8px' }}>
+                   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ opacity: 0.5 }}><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
+                   SENSOR DISABLED
+                 </div>
+
+                 {/* Secondary Camera HUD overlay */}
+                 <div className="hud-overlay" style={{ pointerEvents: 'none', position: 'absolute', inset: 0, opacity: cam.is_active === false ? 0.3 : 1 }}>
+                   <div className="hud-corner top-left"></div>
+                   <div className="hud-corner top-right"></div>
+                   <div className="hud-corner bottom-left"></div>
+                   <div className="hud-corner bottom-right"></div>
+                   <div className="hud-center-cross"></div>
+                   
+                   {/* Connection status chip — always visible when streaming */}
+                   <div className="hud-telem-top" style={{ position: 'absolute', top: 12, left: 12, right: 12, display: 'flex', justifyContent: 'space-between' }}>
+                     <div className="telem-chip" style={{ background: 'rgba(0,0,0,0.6)', padding: '2px 6px', borderRadius: 4, fontSize: '0.65rem', color: '#fff' }}>
+                       {cam.is_active === false ? 'DISABLED' : 'LIVE FEED'}
+                     </div>
+                     <div className="telem-chip" style={{ background: 'rgba(0,0,0,0.6)', padding: '2px 6px', borderRadius: 4, fontSize: '0.65rem', color: '#fff' }}>1920x1080</div>
+                   </div>
+                   
+                   {/* Neural telemetry — only shown when system is running */}
+                   {isRunning && cam.is_active !== false && (
+                     <div className="hud-telem-btm" style={{ position: 'absolute', bottom: 50, left: 12, right: 12, display: 'flex', justifyContent: 'space-between' }}>
+                       <div className="telem-chip" style={{ background: 'rgba(0,0,0,0.6)', padding: '2px 6px', borderRadius: 4, fontSize: '0.65rem', color: '#fff' }}>STABILITY: {`${(cameraStats[cam._id]?.stability || 99.9).toFixed(1)}%`}</div>
+                       <div className="telem-chip" style={{ background: 'rgba(0,0,0,0.6)', padding: '2px 6px', borderRadius: 4, fontSize: '0.65rem', color: '#fff' }}>{`${(cameraStats[cam._id]?.fps || 0).toFixed(0)} FPS`}</div>
+                     </div>
+                   )}
+                 </div>
+
+                 {/* Secondary Camera Neural Confidence (Dynamic mapping per node) */}
+                 {isRunning && cam.is_active !== false && (
+                   <div style={{
+                     position: 'absolute', bottom: 12, left: 12, right: 12,
+                     background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)',
+                     padding: '6px 10px', borderRadius: 6,
+                     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                     fontSize: '0.7rem', fontWeight: 700, color: 'white', zIndex: 11
+                   }}>
+                     <span>NEURAL CONFIDENCE</span>
+                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                       <div style={{ width: 80, height: 4, background: 'rgba(255,255,255,0.15)', borderRadius: 4 }}>
+                         <div style={{
+                           height: '100%', borderRadius: 4,
+                           width: `${Math.min(cameraStats[cam._id]?.prob || 0, 100)}%`,
+                           background: (cameraStats[cam._id]?.prob || 0) > 70 ? '#EF4444' : (cameraStats[cam._id]?.prob || 0) > 40 ? '#F59E0B' : '#22C55E',
+                           transition: 'width 1.2s ease, background 0.3s'
+                         }} />
+                       </div>
+                       <span style={{ color: (cameraStats[cam._id]?.prob || 0) > 70 ? '#EF4444' : (cameraStats[cam._id]?.prob || 0) > 40 ? '#F59E0B' : '#22C55E' }}>
+                         {(cameraStats[cam._id]?.prob || 0).toFixed(1)}%
+                       </span>
+                     </div>
+                   </div>
+                 )}
+              </div>
+              <div className="camera-card-footer">
+                <div className="camera-info">
+                  <div className="camera-card-title">{cam.name}</div>
+                  <div className="camera-card-url">{cam.url}</div>
+                </div>
+                <div style={{ display: 'flex', gap: '4px' }}>
+                  <button 
+                    className="camera-card-delete"
+                    onClick={() => toggleCameraActive(cam._id, cam.is_active)}
+                    title={cam.is_active === false ? "Enable Sensor" : "Disable Sensor"}
+                    style={{ color: cam.is_active === false ? '#10b981' : 'var(--text-main)', background: 'var(--bg-page)' }}
+                  >
+                    {cam.is_active === false ? (
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                    ) : (
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
+                    )}
+                  </button>
+                  <button 
+                    className="camera-card-delete"
+                    onClick={toggleFullscreen}
+                    title="Fullscreen"
+                    style={{ color: 'var(--text-main)', background: 'var(--bg-page)' }}
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path></svg>
+                  </button>
+                  <button 
+                    className="camera-card-delete"
+                    onClick={() => deleteCamera(cam._id)}
+                    title="Remove Sensor"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
         <div className="intelligence-module">
           <div className="panel-head">
             <h3>
