@@ -7,9 +7,10 @@ export default defineConfig(({ mode }) => {
   const backendUrl = env.VITE_API_BASE || 'http://localhost:5000'
 
   return {
+    base: '/',
     plugins: [react()],
     build: {
-      outDir: '../static/dist',
+      outDir: 'dist',
       emptyOutDir: true,
       assetsDir: 'assets',
     },
