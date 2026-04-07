@@ -30,9 +30,35 @@ from archive_system import ArchiveSystem
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = Config.SECRET_KEY
-CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
-# Use 'threading' mode for stability on Windows
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
+
+# ── CORS ───────────────────────────────────────────────────────────────────────
+# FRONTEND_URL: set this in Railway Variables to your Vercel URL.
+# e.g. https://smart-res-q-beta.vercel.app
+# Wildcard "*" is the safe fallback for development.
+_frontend_url = os.getenv("FRONTEND_URL", "*")
+_cors_origins = ["*"] if _frontend_url == "*" else [
+    _frontend_url,
+    "http://localhost:5173",   # Vite local dev
+    "http://localhost:3000",   # Create-React-App local dev
+]
+
+CORS(
+    app,
+    resources={r"/*": {"origins": _cors_origins}},
+    supports_credentials=True,
+    allow_headers=["Content-Type", "Authorization"],
+    methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+)
+
+# ── SocketIO ──────────────────────────────────────────────────────────────────
+# Use 'threading' async_mode: correct for gthread Gunicorn workers.
+socketio = SocketIO(
+    app,
+    cors_allowed_origins="*",
+    async_mode='threading',
+    logger=False,
+    engineio_logger=False,
+)
 
 @app.route('/api/status', methods=['GET'])
 def health_check():
