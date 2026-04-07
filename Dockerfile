@@ -4,7 +4,7 @@
 #  Base: Python 3.11-slim (TF2.21 requires <3.12)
 # ─────────────────────────────────────────────────────────────
 
-FROM python:3.11-slim
+FROM python:3.11-slim-bookworm
 
 # --- Environment ---
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -18,11 +18,11 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 # tesseract-ocr     → OCR fallback engine
 # gcc/build-essential → needed to compile some Python packages
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libgl1-mesa-glx \
+    libgl1 \
     libglib2.0-0 \
     libsm6 \
     libxext6 \
-    libxrender-dev \
+    libxrender1 \
     ffmpeg \
     tesseract-ocr \
     tesseract-ocr-eng \
