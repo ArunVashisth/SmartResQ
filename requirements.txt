@@ -20,12 +20,12 @@ gunicorn==21.2.0
 
 # ── Computer Vision ───────────────────────────────────────────
 opencv-python-headless==4.9.0.80
-numpy==1.26.4
+numpy>=1.23.5,<1.27.0
 pillow==10.3.0
 
 # ── AI Inference ─────────────────────────────────────────────
-# CPU-only wheel — ~500MB vs ~1.8GB for the GPU build
-tensorflow-cpu==2.13.1
+# Upgraded to 2.15.0 to support newer numpy versions (1.26+)
+tensorflow-cpu==2.15.0
 
 # ── OCR (license plate reading) ──────────────────────────────
 # Tesseract binary is installed via Dockerfile apt-get
