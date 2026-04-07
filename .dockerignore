@@ -1,0 +1,64 @@
+# ─────────────────────────────────────────────────────────────
+#  .dockerignore — Speeds up docker build by excluding junk
+#  Prevents large local files from being sent to the builder
+# ─────────────────────────────────────────────────────────────
+
+# Python
+__pycache__/
+*.py[cod]
+*.so
+.venv/
+venv/
+env/
+*.egg-info/
+.pytest_cache/
+
+# Node.js / Frontend build artifacts
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+frontend/.env*
+
+# Large media & data files
+*.mp4
+*.avi
+*.mov
+*.mkv
+*.flv
+*.webm
+*.h5
+*.hdf5
+model_weights.keras
+
+# Local working dirs (will be created fresh by Docker)
+accident_photos/*
+plate_detection_frames/*
+vehicle_no_plates/*
+uploaded_videos/*
+output_frames/*
+archives/*
+
+# Git + IDE
+.git/
+.gitignore
+.vscode/
+.idea/
+*.swp
+
+# Local env — secrets must be set in Railway dashboard, NOT in image
+.env
+.env.*
+*.env
+
+# Misc
+*.log
+desktop.ini
+Thumbs.db
+.DS_Store
+*.bak
+*.tmp
+notebooks/
+scripts/
+docs/
+data/
+test.txt

@@ -6,16 +6,20 @@ numpy==1.26.4
 pandas==2.2.2
 pillow==10.3.0
 
+# Use headless OpenCV — no GUI libs needed on a server
 opencv-python-headless==4.9.0.80
 
 easyocr==1.7.1
 pytesseract==0.3.10
 
-tensorflow==2.21.0
+tensorflow==2.15.0
 
 twilio==9.0.0
 python-dotenv==1.0.1
 requests==2.31.0
 
-eventlet==0.33.3
+# Production WSGI server (threading mode — most stable on Python 3.11+)
 gunicorn==21.2.0
+
+# MongoDB with SRV support (for Atlas)
+pymongo[srv]==4.6.3
