@@ -79,18 +79,5 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=300s --retries=3 \
     CMD curl -f http://localhost:${PORT:-5000}/api/status || exit 1
 
 # ── Start command ─────────────────────────────────────────────
-# gthread worker: 1 process, 8 threads — correct for SocketIO with
-# threading async_mode. We must NOT use multiple workers because
-# dashboard_state and CameraManager live in process memory.
-# --timeout 300: accommodates model download on first boot.
-CMD gunicorn \
-    --worker-class gthread \
-    --workers 1 \
-    --threads 8 \
-    --bind 0.0.0.0:${PORT:-5000} \
-    --timeout 300 \
-    --keep-alive 75 \
-    --log-level info \
-    --access-logfile - \
-    --error-logfile - \
-    app:app
+# Wrapped in sh -c to ensure $PORT is expanded correctly on Railway.
+CMD ["sh", "-c", "gunicorn --worker-class gthread --workers 1 --threads 8 --bind 0.0.0.0:${PORT:-5000} --timeout 300 --keep-alive 75 --log-level info --access-logfile - --error-logfile - app:app"]
