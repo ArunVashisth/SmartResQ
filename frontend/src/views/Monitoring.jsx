@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import { MapContainer, TileLayer, Marker, Popup, useMap, CircleMarker, Tooltip } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import { API_BASE } from '../utils/api';
 
 // Fix for default marker icons in React-Leaflet
 import icon from 'leaflet/dist/images/marker-icon.png';
@@ -153,10 +154,11 @@ const HWPill = ({ label, value, progress, color }) => (
 // ─────────────────────────────────────────────────────────────────────────────
 const useAuthFetch = () => {
   return useCallback(async (url, options = {}) => {
-    const token = localStorage.getItem('auth_token');
+    const token = localStorage.getItem('token') || localStorage.getItem('auth_token');
     const headers = { 'Authorization': `Bearer ${token}`, ...options.headers };
     try {
-      const res = await fetch(url, { ...options, headers });
+      const fullUrl = url.startsWith('http') ? url : `${API_BASE}${url}`;
+      const res = await fetch(fullUrl, { ...options, headers });
       if (!res.ok) return null;
       return await res.json();
     } catch {
@@ -508,7 +510,7 @@ const Monitoring = ({ dashboardState }) => {
                 <div className="camera-frame-wrapper">
                   {active ? (
                     isBackendReady
-                      ? <StreamImg src={`/api/cameras/${cam._id}/feed`} alt={cam.name} className="camera-feed-img" />
+                      ? <StreamImg src={`${API_BASE}/api/cameras/${cam._id}/feed`} alt={cam.name} className="camera-feed-img" />
                       : <div className="camera-frame-placeholder" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                           <div style={{ width: 20, height: 20, border: '2px solid rgba(255,255,255,0.1)', borderTopColor: 'var(--primary)', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
                           CONNECTING...
