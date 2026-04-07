@@ -62,7 +62,7 @@ const Settings = () => {
     const renameCamera = async (id, newName) => {
         if (!newName.trim()) return;
         try {
-            const res = await fetch(`/api/cameras/${id}/rename`, {
+            const res = await fetch(`${API_BASE}/api/cameras/${id}/rename`, {
                 method: 'POST',
                 headers: { 
                     'Content-Type': 'application/json',
