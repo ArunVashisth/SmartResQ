@@ -4,10 +4,6 @@ const TopNav = ({ systemStatus, onStart, onStop, isRunning, isActionPending, onL
   return (
     <header className="top-nav">
       <div style={{ display: 'flex', alignItems: 'center', gap: '2rem' }}>
-        <div style={{ width: '160px', height: 'auto', display: 'flex', alignItems: 'center' }}>
-          <img src="/smartlogo.png" style={{ width: '100%', height: 'auto', objectFit: 'contain' }} alt="SmartResQ" />
-        </div>
-        <div style={{ width: '1px', height: '32px', background: '#E2E8F0' }} />
         <div className="view-title">
           <h2 style={{ margin: 0 }}>Mission Control</h2>
           <div className="view-subtitle">Real-time surveillance and monitoring dashboard</div>

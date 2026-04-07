@@ -237,6 +237,32 @@ class ArchiveSystem:
         except Exception as e:
             return None, None
 
+    def delete_analysis(self, analysis_id):
+        """Full cleanup: Metadata, Accidents, and GridFS Images"""
+        try:
+            # 1. Find all accidents to get image file IDs
+            acc_docs = self.accidents.find({'analysis_id': str(analysis_id)})
+            for acc in acc_docs:
+                # 2. Delete associated images from GridFS
+                if 'image_file_id' in acc:
+                    try:
+                        self.fs.delete(acc['image_file_id'])
+                    except:
+                        pass
+                
+                # Also check for license plate images if stored in GridFS (currently not explicitly tracked in fs in this class, but good to be thorough)
+            
+            # 3. Delete accident records
+            self.accidents.delete_many({'analysis_id': str(analysis_id)})
+            
+            # 4. Delete the analysis session itself
+            res = self.video_analysis.delete_one({'_id': ObjectId(analysis_id)})
+            
+            return True if res.deleted_count > 0 else False
+        except Exception as e:
+            print(f"Error during analysis deletion: {e}")
+            return False
+
 if __name__ == "__main__":
     arch = ArchiveSystem()
     print("MongoDB Archive System Initialized")

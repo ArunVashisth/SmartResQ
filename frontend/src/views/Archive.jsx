@@ -165,6 +165,29 @@ const Archive = () => {
     } catch (_) {}
   };
 
+  const deleteReport = async (id) => {
+    if (!window.confirm('🚨 Are you sure you want to permanently delete this analysis? This will also remove all associated accident photos from the database.')) {
+        return;
+    }
+
+    try {
+        const res = await fetch(`${API_BASE}/api/archives/${id}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${localStorage.getItem('auth_token')}` }
+        });
+        const data = await res.json();
+        if (data.success) {
+            setHistory(prev => prev.filter(s => s.id !== id));
+            if (selectedSession === id) setSelectedSession(null);
+            fetchStats();
+        } else {
+            alert('Failed to delete report: ' + data.message);
+        }
+    } catch (err) {
+        alert('Error deleting report: ' + err.message);
+    }
+  };
+
   const toggleSession = (id) =>
     setSelectedSession(prev => prev === id ? null : id);
 
@@ -272,7 +295,17 @@ const Archive = () => {
                             {(session.status || 'unknown').toUpperCase()}
                           </span>
                         </td>
-                        <td>
+                        <td style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                          <button
+                            className="btn-icon"
+                            style={{ padding: '6px', color: '#DC2626' }}
+                            onClick={e => { e.stopPropagation(); deleteReport(session.id); }}
+                            title="Delete report permanently"
+                          >
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                              <polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                            </svg>
+                          </button>
                           <button
                             className="btn-icon"
                             style={{ padding: '4px' }}

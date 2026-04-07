@@ -3,33 +3,29 @@ import React, { useState } from 'react';
 const Sidebar = ({ activeView, setActiveView, userRole }) => {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const menuItems = [
-    { id: 'overview', label: 'Overview', icon: (
+    // --- MAIN ---
+    { id: 'overview', label: 'Overview', section: 'MAIN', icon: (
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" />
         <rect x="3" y="14" width="7" height="7" /><rect x="14" y="14" width="7" height="7" />
       </svg>
     )},
-    { id: 'profile', label: 'My Profile', icon: (
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
-      </svg>
-    )},
-    { id: 'monitoring', label: 'Monitoring', icon: (
+    { id: 'monitoring', label: 'Monitoring', section: 'MAIN', icon: (
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M23 7l-7 5 7 5V7z" /><rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
       </svg>
     )},
-    { id: 'video-analysis', label: 'Video Analysis', icon: (
+    { id: 'video-analysis', label: 'Video Analysis', section: 'MAIN', icon: (
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <polygon points="23 7 16 12 23 17 23 7" /><rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
       </svg>
     )},
-    { id: 'archive', label: 'Archive', icon: (
+    { id: 'archive', label: 'Archive', section: 'MAIN', icon: (
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <polyline points="21 8 21 21 3 21 3 8" /><rect x="1" y="3" width="22" height="5" /><line x1="10" y1="12" x2="14" y2="12" />
       </svg>
     )},
-    { id: 'alerts', label: 'Emergency Alerts', icon: (
+    { id: 'alerts', label: 'Emergency Alerts', section: 'MAIN', icon: (
       <span style={{ position: 'relative', display: 'inline-flex' }}>
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>
@@ -37,23 +33,32 @@ const Sidebar = ({ activeView, setActiveView, userRole }) => {
         <span style={{ position: 'absolute', top: -2, right: -2, width: 7, height: 7, borderRadius: '50%', background: '#DC2626', border: '1.5px solid var(--bg-sidebar, #0f172a)' }} />
       </span>
     )},
-    { id: 'tech-stack', label: 'Tech Stack', icon: (
+
+    // --- USER ---
+    { id: 'profile', label: 'My Profile', section: 'USER', icon: (
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <polyline points="16 18 22 12 16 6" /><polyline points="8 6 2 12 8 18" />
+        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
       </svg>
     )},
-    { id: 'settings', label: 'Settings', icon: (
+
+    // --- ADMIN ZONE ---
+    { id: 'settings', label: 'Settings', section: 'ADMIN', icon: (
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <circle cx="12" cy="12" r="3" />
         <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
       </svg>
     )},
-    { id: 'developer', label: 'Developer', icon: (
+    { id: 'tech-stack', label: 'Tech Stack', section: 'ADMIN', icon: (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <polyline points="16 18 22 12 16 6" /><polyline points="8 6 2 12 8 18" />
+      </svg>
+    )},
+    { id: 'developer', label: 'Developer', section: 'ADMIN', icon: (
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
       </svg>
     )},
-    { id: 'admin', label: 'Admin Panel', adminOnly: true, icon: (
+    { id: 'admin', label: 'Admin Panel', section: 'ADMIN', adminOnly: true, icon: (
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
       </svg>
@@ -68,13 +73,13 @@ const Sidebar = ({ activeView, setActiveView, userRole }) => {
   return (
     <aside className={`sidebar ${isCollapsed ? 'collapsed' : ''}`}>
       <div className="sidebar-header" style={{ 
-        padding: isCollapsed ? '1.5rem 0' : '2rem 1.5rem 1rem',
+        padding: isCollapsed ? '1rem 0' : '1rem 0.5rem 0.5rem',
         display: 'flex', 
         justifyContent: isCollapsed ? 'center' : 'flex-start',
         alignItems: 'center',
         position: 'relative',
-        marginBottom: '1.5rem',
-        minHeight: '60px'
+        marginBottom: '1rem',
+        minHeight: '40px'
       }}>
         {!isCollapsed && (
           <div style={{ 
@@ -128,40 +133,45 @@ const Sidebar = ({ activeView, setActiveView, userRole }) => {
       </div>
 
       <nav className="nav-menu" style={{ overflowY: 'auto', flex: 1, paddingBottom: '0.5rem' }}>
-        {visibleMenuItems.map((item) => {
-          const isAdminItem = item.adminOnly;
+        {visibleMenuItems.map((item, index) => {
+          const showSection = index === 0 || visibleMenuItems[index - 1].section !== item.section;
+          const sectionLabel = item.section === 'ADMIN' ? 'ADMIN ZONE' : item.section;
+          
           return (
             <React.Fragment key={item.id}>
-              {isAdminItem && (
+              {showSection && !isCollapsed && (
                 <div style={{
-                  margin: '0.5rem 0.75rem', borderTop: '1px solid rgba(245,158,11,0.2)',
-                  paddingTop: '0.5rem'
+                  padding: '1rem 1.25rem 0.5rem',
+                  fontSize: '0.65rem',
+                  fontWeight: 700,
+                  color: item.section === 'ADMIN' ? '#F59E0B' : '#64748B',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.1em',
+                  opacity: 0.8
                 }}>
-                  {!isCollapsed && (
-                    <div style={{ fontSize: '0.6rem', fontWeight: 700, color: '#F59E0B', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '0.4rem', paddingLeft: '0.5rem', opacity: 0.7 }}>
-                      Admin Zone
-                    </div>
-                  )}
+                  {sectionLabel}
                 </div>
+              )}
+              {showSection && isCollapsed && (
+                <div style={{ height: '1px', background: 'rgba(0,0,0,0.05)', margin: '0.5rem 0' }} />
               )}
               <div
                 className={`nav-item ${activeView === item.id ? 'active' : ''}`}
                 onClick={() => setActiveView(item.id)}
-                style={isAdminItem ? {
+                style={item.section === 'ADMIN' ? {
                   background: activeView === item.id 
-                    ? 'linear-gradient(135deg, rgba(245,158,11,0.25), rgba(217,119,6,0.15))' 
+                    ? 'linear-gradient(135deg, rgba(245,158,11,0.15), rgba(217,119,6,0.1))' 
                     : 'transparent',
-                  border: activeView === item.id ? '1px solid rgba(245,158,11,0.3)' : '1px solid transparent',
                   color: activeView === item.id ? '#F59E0B' : '#D97706',
                 } : {}}
               >
-                <span className="nav-icon" style={isAdminItem ? { color: '#F59E0B' } : {}}>{item.icon}</span>
+                <span className="nav-icon" style={item.section === 'ADMIN' ? { color: '#F59E0B' } : {}}>{item.icon}</span>
                 <span>{item.label}</span>
-                {isAdminItem && !isCollapsed && (
+                {item.section === 'ADMIN' && item.adminOnly && !isCollapsed && (
                   <span style={{ 
                     marginLeft: 'auto', fontSize: '0.6rem', fontWeight: 800, background: '#F59E0B', 
-                    color: '#000', padding: '1px 6px', borderRadius: '100px'
-                  }}>ROOT</span>
+                    color: '#FFF', padding: '1px 6px', borderRadius: '4px'
+                  }}>PRO</span>
                 )}
               </div>
             </React.Fragment>

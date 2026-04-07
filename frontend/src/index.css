@@ -70,6 +70,22 @@
     box-sizing: border-box;
 }
 
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+}
+
 html {
     font-size: 16px;
     scroll-behavior: smooth;
@@ -323,10 +339,24 @@ body {
 }
 
 .live-indicator.active .indicator-dot {
-    background: var(--success);
-    box-shadow: 0 0 8px var(--success);
-    animation: pulse-dot 2s ease-in-out infinite;
+    background: #22C55E;
+    box-shadow: 0 0 12px #22C55E, 0 0 20px rgba(34, 197, 94, 0.4);
+    animation: pulse-dot-vibrant 2s ease-in-out infinite;
 }
+
+@keyframes pulse-dot-vibrant {
+    0%, 100% {
+        transform: scale(1);
+        box-shadow: 0 0 12px #22C55E, 0 0 20px rgba(34, 197, 94, 0.4);
+        opacity: 1;
+    }
+    50% {
+        transform: scale(1.3);
+        box-shadow: 0 0 18px #22C55E, 0 0 30px rgba(34, 197, 94, 0.6);
+        opacity: 0.8;
+    }
+}
+
 
 @keyframes pulse-dot {
 

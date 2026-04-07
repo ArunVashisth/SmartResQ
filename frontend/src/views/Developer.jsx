@@ -79,30 +79,36 @@ const Developer = () => {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 1, delay: 0.2, ease: 'easeOut' }}
         >
-          Hello, I'm <br/>
-          <span className="dev-text-gradient">Arun Vashisth</span>
+          Hello, we're <br/>
+          <span className="dev-text-gradient">Arun & Tushar</span>
         </motion.h1>
 
         <motion.p 
-          style={{ fontSize: '1.2rem', color: '#475569', maxWidth: '600px', lineHeight: 1.8, margin: '1rem auto 2.5rem auto' }}
+          style={{ fontSize: '1.2rem', color: '#475569', maxWidth: '700px', lineHeight: 1.8, margin: '1rem auto 2.5rem auto' }}
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 1, delay: 0.4 }}
         >
-          I am a B.Tech Computer Science student crafting real-world software that bridges the gap between raw data logic and breathtaking user experiences.
+          We are a duo of Computer Science engineers bridging the gap between raw data logic and breathtaking user experiences.
         </motion.p>
 
-        <motion.div 
-          initial={{ opacity: 0 }} 
-          animate={{ opacity: 1 }} 
-          transition={{ delay: 0.8, duration: 1 }}
-          style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', justifyContent: 'center' }}
-        >
-          <button className="dev-btn" onClick={() => window.open('https://github.com/ArunVashisth', '_blank')}>Explore GitHub</button>
-          <button className="dev-btn-alt" onClick={() => window.location.href='mailto:arunvashisth80@gmail.com'}>
-            arunvashisth80@gmail.com
-          </button>
-        </motion.div>
+        <div style={{ display: 'flex', gap: '2rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.6 }}>
+            <div style={{ fontWeight: 700, fontSize: '1.1rem', marginBottom: '0.5rem', color: '#1e293b' }}>Arun Vashisth</div>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <button className="dev-btn" onClick={() => window.open('https://github.com/ArunVashisth', '_blank')}>GitHub</button>
+              <button className="dev-btn-alt" onClick={() => window.location.href='mailto:arunvashisth80@gmail.com'}>Email</button>
+            </div>
+          </motion.div>
+
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.8 }}>
+            <div style={{ fontWeight: 700, fontSize: '1.1rem', marginBottom: '0.5rem', color: '#1e293b' }}>Tushar Sharma</div>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <button className="dev-btn" onClick={() => window.open('https://github.com/TusharSh06', '_blank')}>GitHub</button>
+              <button className="dev-btn-alt" onClick={() => window.location.href='mailto:tsharmak10@gmail.com'}>Email</button>
+            </div>
+          </motion.div>
+        </div>
       </section>
 
       {/* ── STAGE 2: THE ORIGIN STORY ── */}
@@ -111,7 +117,7 @@ const Developer = () => {
           <FadeInWhenVisible>
             <div style={{ textAlign: 'center', marginBottom: '4rem' }}>
               <div className="dev-subtitle">The Origin</div>
-              <h2 style={{ fontSize: '2.5rem', margin: '0.5rem 0', fontWeight: 800 }}>The Visionary Behind Smart Resq</h2>
+              <h2 style={{ fontSize: '2.5rem', margin: '0.5rem 0', fontWeight: 800 }}>The Visionaries Behind Smart Resq</h2>
             </div>
           </FadeInWhenVisible>
 
@@ -120,32 +126,37 @@ const Developer = () => {
               <InteractiveCard>
                 <div style={{ fontSize: '1.1rem', lineHeight: 1.8, color: '#334155' }}>
                   <p style={{ marginBottom: '1.5rem' }}>
-                    My journey started at <strong>K.R. Mangalam University</strong>, driven by an obsession to solve complex problems through code. While learning theory is great, I wanted to build <span className="dev-text-cyan">systems that matter</span>.
+                    Our journey started at <strong>K.R. Mangalam University</strong>, driven by an obsession to solve complex problems through code. While learning theory is great, we wanted to build <span className="dev-text-cyan">systems that matter</span>.
                   </p>
                   <p>
-                    I engineered <strong>Smart Resq</strong> completely from scratch—merging TensorFlow Computer Vision algorithms with extremely robust backend networking (Flask & Twilio) to detect accidents in milliseconds. My philosophy? The heaviest backend logic is worthless if the frontend dashboard isn't smooth enough to use effortlessly during a crisis.
+                    We engineered <strong>Smart Resq</strong> completely from scratch—merging TensorFlow Computer Vision algorithms with extremely robust backend networking (Flask & Twilio) to detect accidents in milliseconds. Our philosophy? The heaviest backend logic is worthless if the frontend dashboard isn't smooth enough to use effortlessly during a crisis.
                   </p>
                 </div>
               </InteractiveCard>
             </FadeInWhenVisible>
 
-            {/* Profile Picture Frame */}
+            {/* Profile Icons Layered */}
             <FadeInWhenVisible direction="left" delay={0.2}>
-              <div style={{ 
-                width: 300, height: 300, borderRadius: '2rem',
-                background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)',
-                border: '1px solid rgba(255,255,255,0.1)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                overflow: 'hidden', position: 'relative',
-                boxShadow: '0 25px 50px -12px rgba(59, 130, 246, 0.4)'
-              }}>
-                <img src="/profile.jpg" alt="Arun Vashisth" style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => {
-                  e.target.style.display = 'none';
-                  e.target.nextSibling.style.display = 'block';
-                }}/>
-                <div style={{ display: 'none', textAlign: 'center', padding: '2rem', color: '#64748b', fontSize: '0.9rem' }}>
-                  Drop your [profile.jpg] inside the frontend/public folder!
-                </div>
+              <div style={{ position: 'relative', width: 300, height: 300 }}>
+                <div style={{ 
+                  width: 220, height: 220, borderRadius: '2rem',
+                  background: 'linear-gradient(135deg, #2563eb, #7c3aed)',
+                  border: '1px solid rgba(255,255,255,0.1)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  overflow: 'hidden', position: 'absolute', top: 0, left: 0,
+                  boxShadow: '0 25px 50px -12px rgba(59, 130, 246, 0.4)',
+                  zIndex: 2, color: 'white', fontSize: '4rem', fontWeight: 900
+                }}>A</div>
+                <div style={{ 
+                  width: 220, height: 220, borderRadius: '2rem',
+                  background: 'linear-gradient(135deg, #06b6d4, #3b82f6)',
+                  border: '1px solid rgba(255,255,255,0.1)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  overflow: 'hidden', position: 'absolute', bottom: 0, right: 0,
+                  boxShadow: '0 25px 50px -12px rgba(6, 182, 212, 0.4)',
+                  zIndex: 1, color: 'white', fontSize: '4rem', fontWeight: 900,
+                  opacity: 0.8
+                }}>T</div>
               </div>
             </FadeInWhenVisible>
           </div>

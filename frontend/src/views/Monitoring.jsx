@@ -1,4 +1,19 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
+import { MapContainer, TileLayer, Marker, Popup, useMap, CircleMarker, Tooltip } from 'react-leaflet';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
+
+// Fix for default marker icons in React-Leaflet
+import icon from 'leaflet/dist/images/marker-icon.png';
+import iconShadow from 'leaflet/dist/images/marker-shadow.png';
+
+let DefaultIcon = L.icon({
+  iconUrl: icon,
+  shadowUrl: iconShadow,
+  iconSize: [25, 41],
+  iconAnchor: [12, 41]
+});
+L.Marker.prototype.options.icon = DefaultIcon;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // StreamImg — Resilient MJPEG/image component
@@ -168,12 +183,18 @@ const Monitoring = ({ dashboardState }) => {
 
   // ── State ──────────────────────────────────────────────────────────────────
   const [cameras,       setCameras]       = useState([]);
-  const [newCamUrl,     setNewCamUrl]     = useState('');
-  const [newCamName,    setNewCamName]    = useState('');
-  const [isAdding,      setIsAdding]      = useState(false);
+  const [newCamName, setNewCamName] = useState('');
+  const [newCamUrl, setNewCamUrl] = useState('');
+  const [newCamLat, setNewCamLat] = useState('');
+  const [newCamLng, setNewCamLng] = useState('');
+  const [isAdding, setIsAdding] = useState(false);
   const [cpuLoad,       setCpuLoad]       = useState(5);
   const [cameraStats,   setCameraStats]   = useState({});
   const [isBackendReady, setIsBackendReady] = useState(false);
+  const [isPrimaryActive, setIsPrimaryActive] = useState(() => {
+    const saved = localStorage.getItem('isPrimaryActive');
+    return saved === null ? true : saved === 'true';
+  });
 
   // ── Derived ────────────────────────────────────────────────────────────────
   const isRunning = dashboardState?.is_running || false;
@@ -219,18 +240,32 @@ const Monitoring = ({ dashboardState }) => {
   // ── Add camera ─────────────────────────────────────────────────────────────
   const addCamera = async () => {
     if (!newCamUrl.trim()) return;
-    const urls = newCamUrl.split(/[\n,]+/).map(u => u.trim()).filter(Boolean);
-    const camsToAdd = urls.map((u, i) => ({
-      name: urls.length > 1 ? `${newCamName || 'Camera'} ${i + 1}` : (newCamName || 'Camera'),
-      url: u
-    }));
+    const camData = { 
+      name: newCamName || 'New Camera', 
+      url: newCamUrl.split(/[\n,]+/).map(s => s.trim()).filter(Boolean)[0],
+      lat: newCamLat ? parseFloat(newCamLat) : null,
+      lng: newCamLng ? parseFloat(newCamLng) : null
+    };
+
     const data = await authFetch('/api/cameras', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ cameras: camsToAdd })
+      body: JSON.stringify({ 
+        name: newCamName || 'New Camera', 
+        url: newCamUrl.split(/[\n,]+/).map(s => s.trim()).filter(Boolean)[0],
+        lat: newCamLat ? parseFloat(newCamLat) : null,
+        lng: newCamLng ? parseFloat(newCamLng) : null
+      })
     });
+
     if (data?.success) {
-      if (mountedRef.current) { setNewCamUrl(''); setNewCamName(''); setIsAdding(false); }
+      if (mountedRef.current) { 
+        setNewCamName(''); 
+        setNewCamUrl(''); 
+        setNewCamLat(''); 
+        setNewCamLng(''); 
+        setIsAdding(false); 
+      }
       fetchCameras();
     } else {
       alert('Failed to add camera: ' + (data?.error || 'Server error'));
@@ -251,11 +286,6 @@ const Monitoring = ({ dashboardState }) => {
     const newState = currentState === false ? true : false;
     // Optimistic update
     setCameras(prev => prev.map(c => c._id === id ? { ...c, is_active: newState } : c));
-    const data = await authFetch(`/api/cameras/${id}/toggle`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ is_active: newState })
-    });
     if (!data?.success) fetchCameras(); // restore on failure
   };
 
@@ -371,55 +401,95 @@ const Monitoring = ({ dashboardState }) => {
           <div className="form-group">
             <input type="text" className="form-input" placeholder="Sensor Name (e.g. Zone 4 North)"
               value={newCamName} onChange={e => setNewCamName(e.target.value)} />
-            <textarea className="form-textarea" rows={3}
-              placeholder="RTSP or HTTP URLs (comma or newline separated)"
+            <textarea className="form-textarea" rows={2}
+              placeholder="Sensor URL (RTSP or HTTP)"
               value={newCamUrl} onChange={e => setNewCamUrl(e.target.value)} />
+            <div style={{ display: 'flex', gap: '1rem' }}>
+              <input type="number" step="any" className="form-input" placeholder="Latitude (optional)"
+                value={newCamLat} onChange={e => setNewCamLat(e.target.value)} />
+              <input type="number" step="any" className="form-input" placeholder="Longitude (optional)"
+                value={newCamLng} onChange={e => setNewCamLng(e.target.value)} />
+            </div>
             <button className="btn btn-success" onClick={addCamera}>Integrate New Sensors</button>
           </div>
         </div>
       )}
 
       {/* ── Main layout ────────────────────────────────────────────────────── */}
-      <div className="monitoring-layout-refined" style={{ flex: 1, minHeight: 0 }}>
+      <div className="monitoring-layout-refined" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 380px', gap: '1.5rem', flex: 1, minHeight: 0 }}>
 
-        {/* LEFT: Camera grid */}
-        <div className="cameras-grid" style={{ overflowY: 'auto', paddingRight: '0.5rem', alignContent: 'start', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))' }}>
+        {/* LEFT Column: Camera grid + Map */}
+        <div className="left-monitoring-column" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', overflowY: 'auto' }}>
+          <div className="cameras-grid" style={{ alignContent: 'start', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', display: 'grid', gap: '1rem' }}>
+
+
 
           {/* ── Primary camera card ─────────────────────────────────────────── */}
-          <div className="camera-card primary-camera-card" style={{ order: -1, border: isRunning ? '2px solid var(--primary)' : '1px solid var(--border)' }}>
+          <div className="camera-card primary-camera-card" style={{ 
+            order: -1, 
+            border: isRunning && isPrimaryActive ? '2px solid var(--primary)' : '1px solid var(--border)',
+            opacity: isPrimaryActive ? 1 : 0.6
+          }}>
             <div className="camera-frame-wrapper">
-              {isRunning ? (
-                hasFrame
-                  ? <img ref={liveFrameRef} className="camera-feed-img" alt="Live camera feed" />
-                  : <div className="camera-frame-placeholder">AWAITING FIRST FRAME...</div>
+              {isPrimaryActive ? (
+                isRunning ? (
+                  hasFrame
+                    ? <img ref={liveFrameRef} className="camera-feed-img" alt="Live camera feed" />
+                    : <div className="camera-frame-placeholder">AWAITING FIRST FRAME...</div>
+                ) : (
+                  isBackendReady
+                    ? <StreamImg src="/api/cameras/primary/feed" className="camera-feed-img" alt="Standby feed" />
+                    : <div className="camera-frame-placeholder">
+                        <div style={{ width: 20, height: 20, border: '2px solid rgba(255,255,255,0.1)', borderTopColor: 'var(--primary)', borderRadius: '50%', animation: 'spin 1s linear infinite', marginBottom: 8 }} />
+                        CONNECTING TO BACKEND...
+                      </div>
+                )
               ) : (
-                isBackendReady
-                  ? <StreamImg src="/api/cameras/primary/feed" className="camera-feed-img" alt="Standby feed" />
-                  : <div className="camera-frame-placeholder">
-                      <div style={{ width: 20, height: 20, border: '2px solid rgba(255,255,255,0.1)', borderTopColor: 'var(--primary)', borderRadius: '50%', animation: 'spin 1s linear infinite', marginBottom: 8 }} />
-                      CONNECTING TO BACKEND...
-                    </div>
+                <div className="camera-frame-placeholder" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ opacity: 0.5 }}>
+                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
+                    <line x1="1" y1="1" x2="23" y2="23" />
+                  </svg>
+                  PRIMARY SENSOR DISABLED
+                </div>
               )}
               <HudOverlay
-                opacity={isRunning ? 1 : 0.3}
-                topLeft={isRunning ? 'SECURED CONNECTION' : 'STANDBY FEED'}
+                opacity={isRunning && isPrimaryActive ? 1 : 0.3}
+                topLeft={isRunning && isPrimaryActive ? 'SECURED CONNECTION' : isPrimaryActive ? 'STANDBY FEED' : 'OFFLINE'}
                 topRight="1920×1080"
-                bottomLeft={`STABILITY: ${isRunning ? '99.9%' : 'N/A'}`}
-                bottomRight={fps > 0 ? `${fps.toFixed(0)} FPS` : '-- FPS'}
+                bottomLeft={`STABILITY: ${isRunning && isPrimaryActive ? '99.9%' : 'N/A'}`}
+                bottomRight={fps > 0 && isPrimaryActive ? `${fps.toFixed(0)} FPS` : '-- FPS'}
               />
-              {isRunning && <ConfidenceBar prob={prob} />}
+              {isRunning && isPrimaryActive && <ConfidenceBar prob={prob} />}
             </div>
             <div className="camera-card-footer">
               <div className="camera-info">
                 <div className="camera-card-title" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   Primary Intelligence Console
-                  <div style={{ width: 6, height: 6, borderRadius: '50%', background: isRunning ? '#22C55E' : '#64748b', boxShadow: isRunning ? '0 0 6px #22C55E' : 'none' }} />
+                  <div style={{ width: 6, height: 6, borderRadius: '50%', background: isRunning && isPrimaryActive ? '#22C55E' : '#64748b', boxShadow: isRunning && isPrimaryActive ? '0 0 6px #22C55E' : 'none' }} />
                 </div>
                 <div className="camera-card-url" style={{ color: 'var(--primary)' }}>SYSTEM KERNEL</div>
               </div>
-              <button className="camera-card-delete" onClick={toggleFullscreen} title="Fullscreen" style={{ color: 'var(--text-main)', background: 'var(--bg-page)' }}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3" /></svg>
-              </button>
+              <div style={{ display: 'flex', gap: 4 }}>
+                <button 
+                  className="camera-card-delete" 
+                  title={isPrimaryActive ? 'Disable Sensor' : 'Enable Sensor'}
+                  onClick={() => {
+                    const newState = !isPrimaryActive;
+                    setIsPrimaryActive(newState);
+                    localStorage.setItem('isPrimaryActive', newState);
+                  }}
+                  style={{ color: isPrimaryActive ? 'var(--text-main)' : '#10b981', background: 'var(--bg-page)' }}
+                >
+                  {isPrimaryActive
+                    ? <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" /><line x1="1" y1="1" x2="23" y2="23" /></svg>
+                    : <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></svg>
+                  }
+                </button>
+                <button className="camera-card-delete" onClick={toggleFullscreen} title="Fullscreen" style={{ color: 'var(--text-main)', background: 'var(--bg-page)' }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3" /></svg>
+                </button>
+              </div>
             </div>
           </div>
 
@@ -489,8 +559,65 @@ const Monitoring = ({ dashboardState }) => {
           })}
         </div>
 
-        {/* CENTRE: Primary intelligence console panel */}
-        <div className="intelligence-module">
+        {/* MAP MODULE (Under Cameras) */}
+        <div className="map-module" style={{ 
+          marginTop: '1rem', 
+          height: '350px', 
+          borderRadius: '16px', 
+          overflow: 'hidden', 
+          border: '1px solid var(--border)',
+          position: 'relative',
+          gridColumn: '1 / -1' // Span if in a grid
+        }}>
+          <MapContainer 
+            center={[20.5937, 78.9629]} 
+            zoom={4} 
+            style={{ height: '100%', width: '100%' }}
+            zoomControl={false}
+          >
+            <TileLayer
+              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+              attribution='&copy; OpenStreetMap contributors'
+            />
+            {cameras.filter(c => c.lat && c.lng).map(cam => (
+              <CircleMarker 
+                key={cam._id} 
+                center={[cam.lat, cam.lng]} 
+                radius={6}
+                pathOptions={{ 
+                  fillColor: cam.is_active ? '#2563EB' : '#64748b', 
+                  color: '#fff', 
+                  weight: 2, 
+                  fillOpacity: 0.9 
+                }}
+              >
+                <Tooltip permanent direction="top" offset={[0, -10]} opacity={1}>
+                  <div style={{ 
+                    fontWeight: 700, 
+                    fontSize: '0.7rem', 
+                    color: 'var(--text-main)', 
+                    textTransform: 'uppercase' 
+                  }}>
+                    {cam.name}
+                  </div>
+                </Tooltip>
+                <Popup>
+                  <div style={{ fontSize: '0.8rem' }}>
+                    <strong>{cam.name}</strong><br/>
+                    {cam.is_active ? 'Status: Active' : 'Status: Disabled'}
+                  </div>
+                </Popup>
+              </CircleMarker>
+            ))}
+          </MapContainer>
+        </div>
+      </div>
+
+      {/* RIGHT Column: Console (Top) + Stats (Bottom) */}
+      <div className="right-dashboard-column" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', overflowY: 'auto' }}>
+        
+        {/* PRIMARY CONSOLE */}
+        <div className="intelligence-module" style={{ flexShrink: 0 }}>
           <div className="panel-head">
             <h3>
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2563EB" strokeWidth="2">
@@ -504,7 +631,7 @@ const Monitoring = ({ dashboardState }) => {
             </div>
           </div>
 
-          <div className="primary-sensor-container" style={{ position: 'relative' }}>
+          <div className="primary-sensor-container" style={{ position: 'relative', minHeight: '240px' }}>
             {hasFrame
               ? <img ref={liveFrameRef} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', borderRadius: 8 }} alt="Live" />
               : <div className="placeholder-box">
@@ -517,72 +644,56 @@ const Monitoring = ({ dashboardState }) => {
               <div className="hud-corner top-left" /><div className="hud-corner top-right" />
               <div className="hud-corner bottom-left" /><div className="hud-corner bottom-right" />
               <div className="hud-center-cross" />
-              <div className="hud-telem-top">
-                <div className="telem-chip">{isRunning ? 'SECURED CONNECTION' : 'OFFLINE'}</div>
-                <div className="telem-chip">1920×1080</div>
-              </div>
-              <div className="hud-telem-btm">
-                <div className="telem-chip">STABILITY: {isRunning ? '99.9%' : 'N/A'}</div>
-                <div className="telem-chip">{fps > 0 ? `${fps.toFixed ? fps.toFixed(0) : fps} FPS` : '-- FPS'}</div>
-              </div>
             </div>
-            {isRunning && (
-              <div style={{ position: 'absolute', bottom: 16, left: 16, right: 16, background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(4px)', padding: '8px 14px', borderRadius: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem', fontWeight: 700, color: 'white' }}>
-                <span>NEURAL CONFIDENCE</span>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <div style={{ width: 120, height: 4, background: 'rgba(255,255,255,0.15)', borderRadius: 4 }}>
-                    <div style={{ height: '100%', borderRadius: 4, width: `${Math.min(prob, 100)}%`, background: prob > 70 ? '#EF4444' : prob > 40 ? '#F59E0B' : '#22C55E', transition: 'width 0.5s ease' }} />
-                  </div>
-                  <span style={{ color: prob > 70 ? '#EF4444' : prob > 40 ? '#F59E0B' : '#22C55E' }}>{prob.toFixed ? prob.toFixed(1) : prob}%</span>
-                </div>
-              </div>
-            )}
+            {isRunning && <ConfidenceBar prob={prob} />}
           </div>
         </div>
 
-        {/* RIGHT: Stats column */}
+        {/* STATS MODULES (Neural, Hardware, Log) */}
         <div className="monitoring-stats-col">
-          <div className="display-panel">
-            <div className="panel-head"><h3>NEURAL SIGNAL</h3></div>
-            <div className="waveform-container" style={{ height: 140 }}>
-              <canvas ref={waveformRef} width="300" height="140" />
-            </div>
-          </div>
 
-          <div className="display-panel">
-            <div className="panel-head"><h3>HARDWARE SYNC</h3></div>
-            <div className="hw-grid-compact">
-              <HWPill label="AI ENGINE" value={`${cpuLoad}%`} progress={cpuLoad} color="#2563EB" />
-              <HWPill label="FRAMES" value={`${dashboardState?.frames_processed || 0}`} progress={Math.min((dashboardState?.frames_processed || 0) / 100, 100)} color="#16A34A" />
-              <HWPill label="ACCIDENTS" value={`${dashboardState?.total_accidents || 0}`} progress={Math.min((dashboardState?.total_accidents || 0) * 10, 100)} color="#EF4444" />
+            <div className="display-panel">
+              <div className="panel-head"><h3>NEURAL SIGNAL</h3></div>
+              <div className="waveform-container" style={{ height: 100 }}>
+                <canvas ref={waveformRef} width="340" height="100" />
+              </div>
             </div>
-          </div>
 
-          <div className="display-panel" style={{ flex: 1, overflowY: 'auto' }}>
-            <div className="panel-head">
-              <h3>INCIDENT LOG</h3>
-              <span className="stat-badge" style={{ background: 'rgba(220,38,38,0.1)', color: '#DC2626' }}>
-                {(dashboardState?.accidents || []).length}
-              </span>
+            <div className="display-panel">
+              <div className="panel-head"><h3>HARDWARE SYNC</h3></div>
+              <div className="hw-grid-compact">
+                <HWPill label="AI ENGINE" value={`${cpuLoad}%`} progress={cpuLoad} color="#2563EB" />
+                <HWPill label="ACCIDENTS" value={`${dashboardState?.total_accidents || 0}`} progress={Math.min((dashboardState?.total_accidents || 0) * 10, 100)} color="#EF4444" />
+              </div>
             </div>
-            <div>
-              {(dashboardState?.accidents || []).length === 0 ? (
-                <div className="empty-state">NO INCIDENTS — SYSTEM {isRunning ? 'MONITORING' : 'OFFLINE'}</div>
-              ) : (
-                (dashboardState?.accidents || []).slice(0, 8).map((acc, idx) => (
-                  <div key={idx} style={{ padding: '0.65rem 1rem', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.78rem' }}>
-                    <div>
-                      <span style={{ fontWeight: 700, color: 'var(--danger)' }}>ACCIDENT</span>
-                      <div style={{ color: 'var(--text-muted)', fontSize: '0.7rem', marginTop: 2 }}>{acc.timestamp}</div>
+
+            <div className="display-panel">
+              <div className="panel-head">
+                <h3>INCIDENT LOG</h3>
+                <span className="stat-badge" style={{ background: 'rgba(220,38,38,0.1)', color: '#DC2626' }}>
+                  {(dashboardState?.accidents || []).length}
+                </span>
+              </div>
+              <div style={{ maxHeight: '200px', overflowY: 'auto' }}>
+                {(dashboardState?.accidents || []).length === 0 ? (
+                  <div className="empty-state">NO INCIDENTS — SYSTEM {isRunning ? 'MONITORING' : 'OFFLINE'}</div>
+                ) : (
+                  (dashboardState?.accidents || []).slice(0, 10).map((acc, idx) => (
+                    <div key={idx} style={{ padding: '0.65rem 1rem', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.78rem' }}>
+                      <div>
+                        <span style={{ fontWeight: 700, color: 'var(--danger)' }}>ACCIDENT</span>
+                        <div style={{ color: 'var(--text-muted)', fontSize: '0.7rem', marginTop: 2 }}>{acc.timestamp}</div>
+                      </div>
+                      <span style={{ fontWeight: 700, color: 'var(--danger)' }}>
+                        {typeof acc.probability === 'number' ? acc.probability.toFixed(1) : acc.probability}%
+                      </span>
                     </div>
-                    <span style={{ fontWeight: 700, color: 'var(--danger)' }}>
-                      {typeof acc.probability === 'number' ? acc.probability.toFixed(1) : acc.probability}%
-                    </span>
-                  </div>
-                ))
-              )}
+                  ))
+                )}
+              </div>
             </div>
           </div>
+
         </div>
       </div>
     </div>

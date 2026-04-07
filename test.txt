@@ -1,0 +1,35 @@
+I have analyzed the Smart Resq project. It is a sophisticated, AI-driven vehicular accident detection and emergency response system.
+
+The project uses a modern full-stack architecture with a premium visual identity:
+
+🏗️ Technical Stack Overview
+Backend (Python)
+Core Framework: Flask with Flask-SocketIO and eventlet for handling high-concurrency, real-time data streams.
+Deep Learning: TensorFlow/Keras for accident classification and detection.
+Computer Vision: OpenCV for multi-camera video processing and frame extraction.
+OCR: Integrated EasyOCR and Tesseract engines for automatic license plate recognition (ALPR).
+Database: MongoDB (via PyMongo) for persisting incident archives, user data, and camera configurations.
+Emergency Infrastructure:
+Twilio Integration for automated voice calls and SMS alerts.
+Fast2SMS support for primary SMS notifications (optimized for the Indian region).
+SMTP Service for secure OTP-based user authentication.
+Frontend (React)
+Framework: React 19 bootstrapped with Vite for ultra-fast performance.
+Real-time Interaction: Powered by Socket.io-client to receive live camera feeds, telemetry, and system alerts without page refreshes.
+Visuals & UX: Uses Framer Motion for smooth, premium micro-animations, Lucide React for modern iconography, and Chart.js for real-time analytics.
+📁 Key Project Components
+
+app.py
+: The main command center handling authentication, user roles, API routing, and alert logic.
+
+camera.py
+: Manages the background processing loop that connects to cameras, performs inference, and broadcasts data.
+
+detection.py
+: A wrapper for the accident detection AI model.
+
+license_plate_detection.py
+: Specialized computer vision logic for vehicle plate extraction.
+
+archive_system.py
+: Handles the lifecycle of analytical data, including snapshots and historical logging.

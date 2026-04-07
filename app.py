@@ -60,6 +60,7 @@ mongo_client = MongoClient(MONGO_URI)
 users_col = mongo_client["smartresq"].users
 otp_col   = mongo_client["smartresq"].otp_store
 cameras_col = mongo_client["smartresq"].cameras
+settings_col = mongo_client["smartresq"].settings
 
 # ensure unique index on username
 try:
@@ -432,16 +433,29 @@ def add_cameras():
     for cam in cam_list:
         name = cam.get('name', 'Camera')
         url = cam.get('url', '').strip()
+        lat = cam.get('lat')
+        lng = cam.get('lng')
         if url:
             import datetime
             now_utc = datetime.datetime.now(datetime.timezone.utc)
-            res = cameras_col.insert_one({
+            camera_doc = {
                 'name': name, 
                 'url': url, 
                 'created_at': now_utc,
                 'is_active': True
+            }
+            if lat is not None: camera_doc['lat'] = lat
+            if lng is not None: camera_doc['lng'] = lng
+            
+            res = cameras_col.insert_one(camera_doc)
+            added.append({
+                '_id': str(res.inserted_id), 
+                'name': name, 
+                'url': url, 
+                'is_active': True,
+                'lat': lat,
+                'lng': lng
             })
-            added.append({'_id': str(res.inserted_id), 'name': name, 'url': url, 'is_active': True})
             
     return jsonify({'success': True, 'added': added, 'message': f'{len(added)} cameras added'})
 
@@ -485,6 +499,53 @@ def rename_camera(camera_id):
         {'$set': {'name': new_name}}
     )
     return jsonify({'success': True, 'name': new_name})
+
+@app.route('/api/settings', methods=['GET'])
+def get_settings():
+    user = get_current_user()
+    if not user:
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    # Defaults
+    defaults = {
+        "detection_threshold": 99,
+        "ocr_model": "EASY_OCR_V2",
+        "default_camera_id": "primary",
+        "alerts_browser": True,
+        "alerts_sms": False,
+        "alerts_email": True,
+        "system_threshold_confidence": 80,
+        "system_threshold_cooldown": 5,
+        "hardware_resolution": "HD_720P",
+        "hardware_fps_cap": 25
+    }
+    
+    settings = settings_col.find_one({})
+    if not settings:
+        return jsonify({'success': True, 'settings': defaults})
+    
+    settings['_id'] = str(settings['_id'])
+    # Merge defaults for any missing keys
+    for k, v in defaults.items():
+        if k not in settings:
+            settings[k] = v
+            
+    return jsonify({'success': True, 'settings': settings})
+
+@app.route('/api/settings', methods=['POST'])
+def update_settings():
+    user = get_current_user()
+    if not user:
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    data = request.get_json() or {}
+    # We only store one settings document
+    settings_col.update_one(
+        {},
+        {'$set': data},
+        upsert=True
+    )
+    return jsonify({'success': True, 'message': 'Settings updated'})
 
 @app.route('/api/cameras/primary/feed')
 def primary_camera_feed():
@@ -685,9 +746,15 @@ def get_archives():
     history = archive.get_analysis_history(limit=50)
     return jsonify({'history': history})
 
-@app.route('/api/archives/<analysis_id>')
+@app.route('/api/archives/<analysis_id>', methods=['GET', 'DELETE'])
 def get_archive_detail(analysis_id):
-    """Get details of a specific analysis session"""
+    """Get details or delete a specific analysis session"""
+    if request.method == 'DELETE':
+        success = archive.delete_analysis(analysis_id)
+        if success:
+            return jsonify({'success': True, 'message': 'Report deleted successfully'})
+        return jsonify({'success': False, 'message': 'Failed to delete report'}), 500
+        
     details = archive.get_analysis_details(analysis_id)
     if details:
         return jsonify(details)
@@ -1179,7 +1246,7 @@ def upload_video():
         'accidents_found': [],
         'progress_percent': 0,
         'fps': fps,
-        'duration_seconds': fround(float(duration), 2),
+        'duration_seconds': round(float(duration), 2),
         'error': None,
         'start_time': None,
         'end_time': None
