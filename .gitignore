@@ -76,11 +76,15 @@ archive_analysis_*/
 output_frames/
 accident_photos/
 vehicle_no_plates/
+plate_detection_frames/
+uploaded_videos/
 temp/
 tmp/
 logs/
 archives/
 data/
+notebooks/
+scripts/
 
 # Model files (keep architecture, ignore heavy training files)
 *.h5
