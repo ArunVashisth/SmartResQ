@@ -218,6 +218,8 @@ const VideoAnalysis = ({ videoAnalysisState, resetVideoAnalysis }) => {
   const [showReplay, setShowReplay]         = useState(false);
   const [capturedFrames, setCapturedFrames] = useState([]);
   const [fullScreenImage, setFullScreenImage] = useState(null);
+  const [threshold, setThreshold]           = useState(50);   // Detection sensitivity 10-99%
+  const [frameSkip, setFrameSkip]           = useState(5);    // Process every Nth frame
 
   const fileInputRef  = useRef(null);
   const liveFrameRef  = useRef(null);
@@ -299,7 +301,7 @@ const VideoAnalysis = ({ videoAnalysisState, resetVideoAnalysis }) => {
       const analyseResp = await fetch(`${API_BASE}/api/analyze-video`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ threshold: 50, frame_skip: 5 })
+        body: JSON.stringify({ threshold, frame_skip: frameSkip })
       });
       const analyseData = await analyseResp.json();
       if (!analyseResp.ok) throw new Error(analyseData.error || 'Failed to start analysis');
@@ -382,6 +384,81 @@ const VideoAnalysis = ({ videoAnalysisState, resetVideoAnalysis }) => {
                 {videoInfo.resolution && <div className="va-info-card"><div className="va-info-label">RESOLUTION</div><div className="va-info-value">{videoInfo.resolution}</div></div>}
                 {videoInfo.fps       && <div className="va-info-card"><div className="va-info-label">FPS</div><div className="va-info-value">{typeof videoInfo.fps === 'number' ? videoInfo.fps.toFixed(1) : videoInfo.fps}</div></div>}
                 {videoInfo.duration_seconds && <div className="va-info-card"><div className="va-info-label">DURATION</div><div className="va-info-value">{videoInfo.duration_seconds}s</div></div>}
+              </div>
+            )}
+
+            {/* ── Analysis Settings (Threshold + Frame-Skip) ── */}
+            {!isAnalyzing && (
+              <div style={{
+                marginTop: '1rem',
+                padding: '1rem',
+                background: 'rgba(37,99,235,0.05)',
+                border: '1px solid rgba(37,99,235,0.15)',
+                borderRadius: '10px'
+              }}>
+                <div style={{ fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.1em', color: '#64748b', marginBottom: '0.85rem', textTransform: 'uppercase' }}>
+                  ⚙ Analysis Settings
+                </div>
+
+                {/* Threshold Slider */}
+                <div style={{ marginBottom: '0.9rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
+                    <label style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-muted, #94a3b8)' }}>
+                      Detection Threshold
+                    </label>
+                    <span style={{
+                      fontSize: '0.78rem', fontWeight: 800,
+                      color: threshold >= 80 ? '#22C55E' : threshold >= 50 ? '#F59E0B' : '#EF4444',
+                      background: threshold >= 80 ? 'rgba(34,197,94,0.1)' : threshold >= 50 ? 'rgba(245,158,11,0.1)' : 'rgba(239,68,68,0.1)',
+                      borderRadius: 6, padding: '2px 8px',
+                    }}>
+                      {threshold}%
+                    </span>
+                  </div>
+                  <input
+                    id="threshold-slider"
+                    type="range"
+                    min={10} max={99} step={1}
+                    value={threshold}
+                    onChange={e => setThreshold(Number(e.target.value))}
+                    style={{ width: '100%', accentColor: '#2563EB', cursor: 'pointer' }}
+                  />
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.6rem', color: '#475569', marginTop: '2px' }}>
+                    <span>10% — More sensitive</span>
+                    <span>99% — Stricter</span>
+                  </div>
+                  <div style={{ marginTop: '0.4rem', fontSize: '0.68rem', color: '#64748b' }}>
+                    {threshold < 40
+                      ? '⚠ Low threshold — may flag non-accidents'
+                      : threshold < 70
+                        ? '✓ Balanced — recommended for most videos'
+                        : '🛡 High precision — only flags clear accidents'}
+                  </div>
+                </div>
+
+                {/* Frame Skip Slider */}
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
+                    <label style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-muted, #94a3b8)' }}>
+                      Frame Sampling Rate
+                    </label>
+                    <span style={{ fontSize: '0.78rem', fontWeight: 800, color: '#2563EB', background: 'rgba(37,99,235,0.1)', borderRadius: 6, padding: '2px 8px' }}>
+                      Every {frameSkip} frames
+                    </span>
+                  </div>
+                  <input
+                    id="frameskip-slider"
+                    type="range"
+                    min={1} max={15} step={1}
+                    value={frameSkip}
+                    onChange={e => setFrameSkip(Number(e.target.value))}
+                    style={{ width: '100%', accentColor: '#2563EB', cursor: 'pointer' }}
+                  />
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.6rem', color: '#475569', marginTop: '2px' }}>
+                    <span>1 — Every frame (slow)</span>
+                    <span>15 — Fast scan</span>
+                  </div>
+                </div>
               </div>
             )}
 
