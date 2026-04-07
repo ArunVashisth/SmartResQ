@@ -1,6 +1,9 @@
 """
-Enhanced OCR License Plate Detection with Text Extraction
-Supports both EasyOCR and Tesseract OCR engines
+License Plate Detection — Tesseract-only (production build)
+EasyOCR has been removed: it installs PyTorch internally (~2.4 GB),
+which pushes the Docker image over Railway's 4 GB limit.
+Tesseract is lighter, already a system dependency, and sufficient
+for license-plate-grade OCR with our pre-processing pipeline.
 """
 import cv2
 import numpy as np
@@ -9,45 +12,22 @@ import re
 from typing import Any, Dict
 from config import Config
 
-# Try to import OCR libraries
-try:
-    import easyocr
-    EASYOCR_AVAILABLE = True
-except ImportError:
-    EASYOCR_AVAILABLE = False
-    print("Warning: EasyOCR not available. Install with: pip install easyocr")
-
 try:
     import pytesseract
     TESSERACT_AVAILABLE = True
 except ImportError:
     TESSERACT_AVAILABLE = False
-    print("Warning: Tesseract not available. Install with: pip install pytesseract")
+    print("Warning: pytesseract not available — OCR disabled.")
 
 
 class LicensePlateDetector:
-    """Enhanced license plate detector with OCR capabilities"""
-    
-    def __init__(self, ocr_engine='easyocr'):
-        """
-        Initialize the license plate detector
-        
-        Args:
-            ocr_engine: 'easyocr' or 'tesseract'
-        """
-        self.ocr_engine = ocr_engine
-        self.reader = None
-        
-        # Initialize OCR reader
-        if ocr_engine == 'easyocr' and EASYOCR_AVAILABLE:
-            try:
-                self.reader = easyocr.Reader(Config.OCR_LANGUAGES, gpu=False)
-                print("EasyOCR initialized successfully")
-            except Exception as e:
-                print(f"Error initializing EasyOCR: {e}")
-                self.reader = None
-        elif ocr_engine == 'tesseract' and not TESSERACT_AVAILABLE:
-            print("Tesseract selected but not available")
+    """License plate detector using Tesseract OCR."""
+
+    def __init__(self, ocr_engine: str = 'tesseract'):
+        # Always use tesseract in production regardless of passed value
+        self.ocr_engine = 'tesseract'
+        if not TESSERACT_AVAILABLE:
+            print("[LPD] Tesseract not available — plates will not be read.")
     
     def preprocess_plate_image(self, plate_img):
         """
@@ -76,52 +56,16 @@ class LicensePlateDetector:
         
         return denoised
     
-    def extract_text_easyocr(self, plate_img):
-        """
-        Extract text using EasyOCR
-        
-        Args:
-            plate_img: Preprocessed plate image
-            
-        Returns:
-            Extracted text string
-        """
-        if not self.reader:
-            return ""
-        
-        try:
-            results = self.reader.readtext(plate_img)
-            
-            # Combine all detected text
-            text_parts = [result[1] for result in results if result[2] > 0.3]  # confidence > 0.3
-            full_text = ' '.join(text_parts)
-            
-            return self.clean_plate_text(full_text)
-        except Exception as e:
-            print(f"Error in EasyOCR text extraction: {e}")
-            return ""
-    
     def extract_text_tesseract(self, plate_img):
-        """
-        Extract text using Tesseract OCR
-        
-        Args:
-            plate_img: Preprocessed plate image
-            
-        Returns:
-            Extracted text string
-        """
+        """Extract text using Tesseract OCR."""
         if not TESSERACT_AVAILABLE:
             return ""
-        
         try:
-            # Configure Tesseract for license plate recognition
             custom_config = r'--oem 3 --psm 7 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
             text = pytesseract.image_to_string(plate_img, config=custom_config)
-            
             return self.clean_plate_text(text)
         except Exception as e:
-            print(f"Error in Tesseract text extraction: {e}")
+            print(f"[LPD] Tesseract error: {e}")
             return ""
     
     def clean_plate_text(self, text):
@@ -208,13 +152,8 @@ class LicensePlateDetector:
                         # Preprocess for OCR
                         plate_processed = self.preprocess_plate_image(plate_enhanced)
                         
-                        # Extract text using selected OCR engine
-                        if self.ocr_engine == 'easyocr' and EASYOCR_AVAILABLE:
-                            text = self.extract_text_easyocr(plate_enhanced)
-                        elif self.ocr_engine == 'tesseract' and TESSERACT_AVAILABLE:
-                            text = self.extract_text_tesseract(plate_processed)
-                        else:
-                            text = "OCR_NOT_AVAILABLE"
+                        # Extract text using Tesseract only
+                        text = self.extract_text_tesseract(plate_processed)
                         
                         result['success'] = True
                         result['plate_path'] = plate_filename

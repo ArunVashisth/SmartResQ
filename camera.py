@@ -12,20 +12,18 @@ import platform
 import threading
 import time
 import base64
-import tkinter as tk
 from datetime import datetime
 from typing import Optional, Dict, Any, Callable, List, Tuple, Union
 from config import Config
 from license_plate_detection import LicensePlateDetector
 from archive_system import ArchiveSystem
 
-# Try to import winsound (Windows only)
+# winsound is Windows-only — safe to ignore on Linux/Railway
 try:
     import winsound
     WINSOUND_AVAILABLE = True
 except ImportError:
     WINSOUND_AVAILABLE = False
-    # Not an error - just means not on Windows
 
 # Try to import detection model
 try:
@@ -165,134 +163,29 @@ class AccidentDetectionSystem:
         except Exception as e:
             print(f"✗ Error calling ambulance: {e}")
             return False
-    
+
     def show_alert_message(self, accident_data):
-        """Show alert message with GUI"""
-        def auto_call_ambulance():
-            # Wait for the configured delay, then call if not cancelled
-            # Uses cancel_event instead of winfo_exists() to be thread-safe
-            # (Tkinter APIs must only be called from the main thread)
-            cancelled = cancel_event.wait(timeout=Config.AUTO_CALL_DELAY)
-            if not cancelled:
-                self.call_ambulance()
-                # Schedule window destruction on the main Tkinter thread
-                try:
-                    alert_window.after(0, alert_window.destroy)
-                except Exception:
-                    pass
-
-        # cancel_event is set when the user clicks Cancel or Call Now
-        cancel_event = threading.Event()
-
-        def on_call_ambulance():
-            cancel_event.set()
-            self.call_ambulance()
-            try:
-                alert_window.destroy()
-            except Exception:
-                pass
-
-        def on_cancel():
-            cancel_event.set()
-            try:
-                alert_window.destroy()
-            except Exception:
-                pass
-
-
-        try:
-            # Play alert sound (Windows only)
-            if WINSOUND_AVAILABLE:
-                try:
-                    import winsound as _ws
-                    _ws.Beep(Config.ALERT_SOUND_FREQUENCY, Config.ALERT_SOUND_DURATION)  # type: ignore[attr-defined]
-                except Exception:
-                    print("\a")  # Terminal bell fallback
-            else:
-                print("\a")  # Terminal bell
-        except Exception as e:
-            print(f"Error playing alert sound: {e}")
-        
-        # Create alert window
-        alert_window = tk.Tk()
-        alert_window.title("🚨 Smart Resq Alert")
-        alert_window.geometry("600x400")
-        alert_window.configure(bg='#1a1a1a')
-        
-        # Title
-        title_label = tk.Label(
-            alert_window, 
-            text="⚠️ ACCIDENT DETECTED ⚠️",
-            fg="#ff4444", 
-            bg='#1a1a1a',
-            font=("Helvetica", 20, "bold")
-        )
-        title_label.pack(pady=20)
-        
-        # Accident details
-        details_text = f"""
-Confidence: {accident_data.get('probability', 0):.1f}%
-Time: {accident_data.get('timestamp', 'N/A')}
-Location: {accident_data.get('location', 'Unknown')}
-
-Auto-calling ambulance in {Config.AUTO_CALL_DELAY} seconds...
         """
-        
-        details_label = tk.Label(
-            alert_window,
-            text=details_text,
-            fg="white",
-            bg='#1a1a1a',
-            font=("Helvetica", 12),
-            justify=tk.LEFT
-        )
-        details_label.pack(pady=10)
-        
-        # License plate info
-        if accident_data.get('plate_text'):
-            plate_label = tk.Label(
-                alert_window,
-                text=f"License Plate: {accident_data['plate_text']}",
-                fg="#44ff44",
-                bg='#1a1a1a',
-                font=("Helvetica", 14, "bold")
-            )
-            plate_label.pack(pady=10)
-        
-        # Buttons
-        button_frame = tk.Frame(alert_window, bg='#1a1a1a')
-        button_frame.pack(pady=20)
-        
-        call_button = tk.Button(
-            button_frame,
-            text="📞 Call Ambulance Now",
-            command=on_call_ambulance,
-            bg="#ff4444",
-            fg="white",
-            font=("Helvetica", 12, "bold"),
-            padx=20,
-            pady=10
-        )
-        call_button.pack(side=tk.LEFT, padx=10)
-        
-        cancel_button = tk.Button(
-            button_frame,
-            text="❌ Cancel",
-            command=on_cancel,
-            bg="#666666",
-            fg="white",
-            font=("Helvetica", 12),
-            padx=20,
-            pady=10
-        )
-        cancel_button.pack(side=tk.LEFT, padx=10)
-        
-        # Start auto-call thread
-        auto_call_thread = threading.Thread(target=auto_call_ambulance)
-        auto_call_thread.daemon = True
-        auto_call_thread.start()
-        
-        alert_window.mainloop()
+        Show local alert.  On headless servers (Railway/Linux) this just
+        prints to the console — the real alert goes through the web
+        dashboard via start_alert_thread → _web_alert path.
+        """
+        prob = accident_data.get('probability', 0)
+        ts   = accident_data.get('timestamp', 'N/A')
+        plate = accident_data.get('plate_text', 'N/A')
+        print(f"\n{'='*50}")
+        print(f"🚨 ACCIDENT ALERT")
+        print(f"   Confidence : {prob:.1f}%")
+        print(f"   Time       : {ts}")
+        print(f"   Plate      : {plate}")
+        print(f"{'='*50}\n")
+        # Audio alert on Windows only
+        if WINSOUND_AVAILABLE:
+            try:
+                import winsound as _ws
+                _ws.Beep(Config.ALERT_SOUND_FREQUENCY, Config.ALERT_SOUND_DURATION)
+            except Exception:
+                pass
     
     def start_alert_thread(self, accident_data):
         """Start alert in separate thread"""

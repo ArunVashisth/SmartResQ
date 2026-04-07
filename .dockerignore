@@ -19,7 +19,13 @@ frontend/dist/
 frontend/build/
 frontend/.env*
 
-# Large media & data files
+# ── MODEL FILES — downloaded at runtime by model_loader.py ───
+# model.json IS included (tiny ~10KB architecture file)
+# model_weights.keras is EXCLUDED — ~270MB, downloaded on first boot
+models/*.keras
+models/*.h5
+models/*.weights
+
 *.mp4
 *.avi
 *.mov

@@ -1,25 +1,47 @@
+# ─────────────────────────────────────────────────────────────
+#  Smart Resq — Production Requirements
+#  Target: Docker image < 2GB on Railway (CPU-only)
+#
+#  Key optimizations vs original:
+#   • tensorflow-cpu  (CPU wheel only — saves ~1.3GB vs full TF)
+#   • easyocr REMOVED (would pull PyTorch → +2.4GB)
+#   • pandas   REMOVED (unused in any runtime code path)
+#   • gdown    ADDED   (runtime model download from Google Drive)
+# ─────────────────────────────────────────────────────────────
+
+# ── Web Framework ─────────────────────────────────────────────
 flask==3.0.3
 flask-socketio==5.3.6
 flask-cors==4.0.0
 
-numpy==1.26.4
-pandas==2.2.2
-pillow==10.3.0
-
-# Use headless OpenCV — no GUI libs needed on a server
-opencv-python-headless==4.9.0.80
-
-easyocr==1.7.1
-pytesseract==0.3.10
-
-tensorflow==2.15.0
-
-twilio==9.0.0
-python-dotenv==1.0.1
-requests==2.31.0
-
-# Production WSGI server (threading mode — most stable on Python 3.11+)
+# ── Async/socket transport ────────────────────────────────────
+# threading mode (most stable on Python 3.11 / Railway)
 gunicorn==21.2.0
 
-# MongoDB with SRV support (for Atlas)
+# ── Computer Vision ───────────────────────────────────────────
+opencv-python-headless==4.9.0.80
+numpy==1.26.4
+pillow==10.3.0
+
+# ── AI Inference ─────────────────────────────────────────────
+# CPU-only wheel — ~500MB vs ~1.8GB for the GPU build
+tensorflow-cpu==2.13.1
+
+# ── OCR (license plate reading) ──────────────────────────────
+# Tesseract binary is installed via Dockerfile apt-get
+pytesseract==0.3.10
+
+# ── Database ─────────────────────────────────────────────────
 pymongo[srv]==4.6.3
+
+# ── Alert System ─────────────────────────────────────────────
+twilio==9.0.0
+requests==2.31.0
+
+# ── Config & Utilities ───────────────────────────────────────
+python-dotenv==1.0.1
+
+# ── Model Download Utility ────────────────────────────────────
+# Enables runtime model download from Google Drive
+# Model is NOT baked into the Docker image — saves ~270MB
+gdown==5.1.0

@@ -7,6 +7,14 @@ on any Python version without TensorFlow.
 import numpy as np
 import cv2
 
+# ── Runtime model download (for cloud deployment) ────────────────────────────
+try:
+    from model_loader import ensure_model_ready
+    _MODEL_LOADER_AVAILABLE = True
+except ImportError:
+    _MODEL_LOADER_AVAILABLE = False
+    def ensure_model_ready(*a, **kw): return True  # no-op locally
+
 # ── Try to import TensorFlow ────────────────────────────────────────────────
 try:
     from tensorflow.keras.models import model_from_json
@@ -130,6 +138,8 @@ class AccidentDetectionModel:
         self._use_tf     = False
 
         if TENSORFLOW_AVAILABLE and model_from_json is not None:
+            # Trigger download if running in cloud and files are missing
+            ensure_model_ready()
             try:
                 with open(model_json_file, "r") as f:
                     self._tf_model = model_from_json(f.read())
