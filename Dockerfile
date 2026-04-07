@@ -74,8 +74,8 @@ EXPOSE 5000
 
 # ── Health check ─────────────────────────────────────────────
 # Railway will mark the deploy as healthy once this passes.
-# start-period=90s gives TF model download time to complete.
-HEALTHCHECK --interval=30s --timeout=10s --start-period=90s --retries=3 \
+# start-period=300s gives TF model download time to complete.
+HEALTHCHECK --interval=30s --timeout=10s --start-period=300s --retries=3 \
     CMD curl -f http://localhost:${PORT:-5000}/api/status || exit 1
 
 # ── Start command ─────────────────────────────────────────────

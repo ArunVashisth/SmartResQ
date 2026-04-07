@@ -6,8 +6,6 @@
   },
   "deploy": {
     "startCommand": "gunicorn --worker-class gthread --workers 1 --threads 8 --bind 0.0.0.0:$PORT --timeout 300 --keep-alive 75 app:app",
-    "healthcheckPath": "/api/status",
-    "healthcheckTimeout": 300,
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 3
   }

@@ -34,7 +34,17 @@ CORS(app)
 # Use 'threading' mode for stability on Windows
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
 
-# Serve archive files
+@app.route('/api/status', methods=['GET'])
+def health_check():
+    """Health check endpoint for Railway/Load Balancers"""
+    from model_loader import model_files_exist
+    return jsonify({
+        'status': 'online',
+        'timestamp': datetime.utcnow().isoformat(),
+        'model_ready': model_files_exist(),
+        'environment': os.getenv('FLASK_ENV', 'production')
+    }), 200
+
 from flask import send_from_directory
 @app.route('/archives/<path:filename>')
 def serve_archive(filename):
