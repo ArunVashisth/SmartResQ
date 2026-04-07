@@ -24,6 +24,9 @@ import os
 import json
 import time
 import uuid
+import io
+from bson import ObjectId
+from flask import send_file
 from werkzeug.utils import secure_filename
 from config import Config
 from archive_system import ArchiveSystem
@@ -59,6 +62,21 @@ socketio = SocketIO(
     logger=False,
     engineio_logger=False,
 )
+
+# Initialize Archive System (MongoDB GridFS)
+archive_sys = ArchiveSystem()
+
+@app.route('/api/archives/image/<string:file_id>')
+def get_gridfs_image(file_id):
+    """Serve images directly from MongoDB GridFS"""
+    img_bytes, mime = archive_sys.get_image(file_id)
+    if not img_bytes:
+        return jsonify({'error': 'Image not found'}), 404
+        
+    return send_file(
+        io.BytesIO(img_bytes),
+        mimetype=mime or 'image/jpeg'
+    )
 
 @app.route('/api/status', methods=['GET'])
 def health_check():

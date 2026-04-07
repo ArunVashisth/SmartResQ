@@ -43,8 +43,8 @@ const AccidentRow = ({ acc, fps, idx, setFullScreenImage }) => {
       <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>#{idx + 1}</span>
       <div>
         {acc.photo_path ? (
-          <div style={{ width: '48px', height: '36px', borderRadius: '4px', overflow: 'hidden', background: '#000', cursor: 'pointer', border: '1px solid var(--border)' }} onClick={() => setFullScreenImage(acc.photo_path)} title="Click to enlarge">
-            <img src={acc.photo_path} alt="Accident Frame" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          <div style={{ width: '48px', height: '36px', borderRadius: '4px', overflow: 'hidden', background: '#000', cursor: 'pointer', border: '1px solid var(--border)' }} onClick={() => setFullScreenImage(`${API_BASE}${acc.photo_path}`)} title="Click to enlarge">
+            <img src={`${API_BASE}${acc.photo_path}`} alt="Accident Frame" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
           </div>
         ) : (
           <span style={{ color: '#94a3b8', fontSize: '0.7rem' }}>—</span>
