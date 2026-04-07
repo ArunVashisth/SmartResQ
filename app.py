@@ -1,12 +1,4 @@
 # pyre-ignore-all-errors
-import eventlet
-eventlet.monkey_patch()
-
-"""
-Smart Resq Web Dashboard
-Real-time monitoring interface for accident detection system
-"""
-
 from typing import Any, Dict, List, Optional, Protocol, Tuple
 
 
@@ -39,7 +31,8 @@ from archive_system import ArchiveSystem
 app = Flask(__name__)
 app.config['SECRET_KEY'] = Config.SECRET_KEY
 CORS(app)
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode='eventlet')
+# Use 'threading' mode for stability on Windows
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
 
 # Serve archive files
 from flask import send_from_directory
@@ -549,10 +542,14 @@ def update_settings():
 
 @app.route('/api/cameras/primary/feed')
 def primary_camera_feed():
-    """Stream the primary system camera in standby without neural analysis."""
+    """Stream the primary system camera. Only works if VIDEO_SOURCE is a valid RTSP/HTTP URL."""
     from config import Config
+    source = Config.VIDEO_SOURCE
+    # Only stream if it's a real network URL — never try to open an integer or local webcam
+    if not isinstance(source, str) or not (source.startswith('rtsp') or source.startswith('http')):
+        return jsonify({'error': 'Primary feed is only available for RTSP/HTTP sources. Configure VIDEO_SOURCE in .env'}), 400
     return Response(
-        generate_frames_mjpeg(Config.VIDEO_SOURCE),
+        generate_frames_mjpeg_shared(source),
         mimetype='multipart/x-mixed-replace; boundary=frame',
         headers={
             'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
@@ -561,73 +558,132 @@ def primary_camera_feed():
         }
     )
 
-def generate_frames_mjpeg(camera_url):
-    """
-    MJPEG proxy generator — fully hardened:
-    • Handles GeneratorExit (client navigates away)
-    • Handles BrokenPipeError / ConnectionResetError (hot-reload)
-    • Caps reconnect attempts at 10 before giving up
-    • Throttles to ~25 FPS to save CPU
-    • Always releases cap on exit
-    """
-    import time
-    import os
+# ─────────────────────────────────────────────
+# CAMERA RESOURCE MANAGEMENT (Singleton Multiplexer)
+# Prevents overloading IP cameras by sharing one RTSP stream across multiple tabs/clients
+# ─────────────────────────────────────────────
+class SharedCameraStream:
+    # Maximum consecutive reconnect attempts before giving up permanently
+    MAX_RETRIES = 5
 
-    MAX_RECONNECTS = 10
-    FRAME_INTERVAL = 1.0 / 25  # 25 FPS cap
+    def __init__(self, url):
+        self.url = url
+        self.cap = None
+        self.ref_count = 0
+        self.last_frame = None
+        self.last_update = 0
+        self.running = False
+        self.lock = threading.Lock()  # Standard threading lock — no eventlet dependency
+        self.error_count = 0
+        self.reconnect_count = 0  # Counts full reconnect cycles
 
-    reconnects = 0
-    cap = None
+    def _open_capture(self):
+        """Open VideoCapture with the correct backend based on URL type."""
+        url = self.url
+        # Convert string index like '0' to integer so OpenCV reads webcam, not a file named '0'
+        if isinstance(url, str) and url.isdigit():
+            url = int(url)
+        if isinstance(url, str) and (url.startswith('rtsp') or url.startswith('http')):
+            return cv2.VideoCapture(url, cv2.CAP_FFMPEG)
+        return cv2.VideoCapture(url)
 
-    try:
-        cap = cv2.VideoCapture(camera_url)
-        last_frame_time = 0.0
+    def _worker(self):
+        source_label = self.url if isinstance(self.url, str) else f'camera:{self.url}'
+        print(f"[Stream] Worker started for: {source_label}")
 
-        while True:
-            now = time.time()
-            elapsed = now - last_frame_time
-            if elapsed < FRAME_INTERVAL:
-                time.sleep(FRAME_INTERVAL - elapsed)
+        self.cap = self._open_capture()
 
-            success, frame = cap.read()
-
-            if not success:
-                reconnects += 1
-                if reconnects > MAX_RECONNECTS:
-                    # Give up — client will see error and retry via StreamImg
+        while self.running and self.ref_count > 0:
+            if not self.cap or not self.cap.isOpened():
+                self.reconnect_count += 1
+                if self.reconnect_count > self.MAX_RETRIES:
+                    print(f"[Stream] Gave up on source '{source_label}' after {self.MAX_RETRIES} retries. Stop.")
                     break
-                time.sleep(min(1.0 * reconnects, 5.0))  # exponential-ish back-off
-                cap.release()
-                cap = cv2.VideoCapture(camera_url)
+                print(f"[Stream] Cannot open '{source_label}'. Retry {self.reconnect_count}/{self.MAX_RETRIES} in 5s...")
+                time.sleep(5)
+                self.cap = self._open_capture()
                 continue
 
-            reconnects = 0  # reset on successful read
-            last_frame_time = time.time()
+            success, frame = self.cap.read()
+            if success:
+                self.error_count = 0
+                self.reconnect_count = 0  # Connection is healthy — reset counter
+                frame = cv2.resize(frame, (640, 360))
+                ret, buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 70])
+                if ret:
+                    self.last_frame = buffer.tobytes()
+                    self.last_update = time.time()
+            else:
+                self.error_count += 1
+                if self.error_count > 10:  # 10 consecutive bad reads → reconnect
+                    print(f"[Stream] Lost feed from '{source_label}'. Reconnecting...")
+                    self.cap.release()
+                    self.error_count = 0
+                    self.reconnect_count += 1
+                    if self.reconnect_count > self.MAX_RETRIES:
+                        print(f"[Stream] Giving up on '{source_label}' after {self.MAX_RETRIES} retries.")
+                        break
+                    time.sleep(3)
+                    self.cap = self._open_capture()
+                else:
+                    time.sleep(0.1)  # Short wait on a bad frame
+                continue  # Don't apply FPS throttle on error
 
-            frame = cv2.resize(frame, (640, 360))
-            ret, buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 70])
-            if not ret:
-                continue
+            # Throttle to ~25 FPS to save CPU
+            time.sleep(1.0 / 25)
 
-            yield (
-                b'--frame\r\n'
-                b'Content-Type: image/jpeg\r\n\r\n'
-                + buffer.tobytes()
-                + b'\r\n'
-            )
+        if self.cap:
+            self.cap.release()
+        self.running = False
+        print(f"[Stream] Worker stopped for: {source_label}")
 
+    def subscribe(self):
+        with self.lock:
+            self.ref_count += 1
+            if not self.running:
+                self.running = True
+                t = threading.Thread(target=self._worker, daemon=True)
+                t.start()
+
+    def unsubscribe(self):
+        with self.lock:
+            self.ref_count = max(0, self.ref_count - 1)
+
+class CameraManager:
+    _streams = {}
+    
+    @classmethod
+    def get_stream(cls, url):
+        # Using a global dictionary is safe in eventlet's single-threaded cooperativity
+        if url not in cls._streams:
+            cls._streams[url] = SharedCameraStream(url)
+        return cls._streams[url]
+
+def generate_frames_mjpeg_shared(camera_url):
+    """Multiplexed MJPEG proxy — only one RTSP connection per URL."""
+    stream = CameraManager.get_stream(camera_url)
+    stream.subscribe()
+    
+    last_sent_time = 0
+    try:
+        while True:
+            # Only send if we have a frame and it's new
+            if stream.last_frame and stream.last_update > last_sent_time:
+                last_sent_time = stream.last_update
+                yield (
+                    b'--frame\r\n'
+                    b'Content-Type: image/jpeg\r\n\r\n'
+                    + stream.last_frame
+                    + b'\r\n'
+                )
+            
+            # Allow event loop to breathe
+            time.sleep(1.0/20)
+            
     except (GeneratorExit, BrokenPipeError, ConnectionResetError, OSError):
-        # Normal: client navigated away or hot-reloaded
         pass
-    except Exception as e:
-        # Unexpected — log but don't crash the server
-        print(f'[MJPEG] Unexpected stream error: {e}')
     finally:
-        try:
-            if cap is not None:
-                cap.release()
-        except Exception:
-            pass
+        stream.unsubscribe()
 
 from flask import Response
 @app.route('/api/cameras/<camera_id>/feed', methods=['GET'])
@@ -636,7 +692,7 @@ def camera_feed(camera_id):
     if not cam:
         return "Camera not found", 404
     return Response(
-        generate_frames_mjpeg(cam['url']),
+        generate_frames_mjpeg_shared(cam['url']),
         mimetype='multipart/x-mixed-replace; boundary=frame',
         headers={
             'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',

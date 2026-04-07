@@ -303,16 +303,23 @@ Auto-calling ambulance in {Config.AUTO_CALL_DELAY} seconds...
                 try:
                     # Lazy import to avoid circular dependency at module load time
                     import app as _app  # type: ignore[import]
-                    _app.emit_alert_for_accident(accident_data)
+                    _app._log_alert('accident', f"Accident detected ({accident_data.get('probability', 0):.1f}%)", True)
+                    # Trigger auto-call if configured in _app
+                    if _app._alert_config.get('auto_call'):
+                        _app._do_call(accident_data)
                 except Exception as e:
                     print(f"⚠ Web alert dispatch error: {e}")
             alert_thread = threading.Thread(target=_web_alert, daemon=True)
             alert_thread.start()
             return
-
-        alert_thread = threading.Thread(target=self.show_alert_message, args=(accident_data,))
-        alert_thread.daemon = True
-        alert_thread.start()
+        
+        # Local GUI mode only
+        try:
+            alert_thread = threading.Thread(target=self.show_alert_message, args=(accident_data,))
+            alert_thread.daemon = True
+            alert_thread.start()
+        except:
+            pass
     
     def save_frame_for_plate_detection(self, frame, index):
         """Save frame temporarily for plate detection"""
@@ -357,17 +364,21 @@ Auto-calling ambulance in {Config.AUTO_CALL_DELAY} seconds...
                 source_idx = int(Config.VIDEO_SOURCE)
                 print(f"📹 Using camera index: {source_idx}")
                 
-                # On Windows, CAP_DSHOW is often more reliable and faster
-                if is_windows:
+                # On Windows, CAP_DSHOW is often more reliable and faster for webcams
+                if is_windows and source_idx < 10:  # Usual webcam range
                     return source_idx + cv2.CAP_DSHOW
                 return source_idx
             except ValueError:
-                # It's a file path
+                # It's a URL or file path
+                if isinstance(Config.VIDEO_SOURCE, str) and (Config.VIDEO_SOURCE.startswith('rtsp') or Config.VIDEO_SOURCE.startswith('http')):
+                    # FORCE FFMPEG FOR STREAMS
+                    return Config.VIDEO_SOURCE
+                
                 if os.path.exists(Config.VIDEO_SOURCE):
                     print(f"📹 Using video file: {Config.VIDEO_SOURCE}")
                     return Config.VIDEO_SOURCE
                 else:
-                    print(f"⚠ Video file not found: {Config.VIDEO_SOURCE}")
+                    print(f"⚠ Video source not found: {Config.VIDEO_SOURCE}")
                     print("  Falling back to camera 0")
                     if is_windows:
                         return 0 + cv2.CAP_DSHOW
@@ -394,7 +405,12 @@ Auto-calling ambulance in {Config.AUTO_CALL_DELAY} seconds...
         print("="*60 + "\n")
         
         video_source = self.get_video_source()
-        video = cv2.VideoCapture(video_source)
+        
+        # Explicitly use FFMPEG for network streams to avoid pattern errors
+        if isinstance(video_source, str) and (video_source.startswith('rtsp') or video_source.startswith('http')):
+            video = cv2.VideoCapture(video_source, cv2.CAP_FFMPEG)
+        else:
+            video = cv2.VideoCapture(video_source)
         
         if not video.isOpened():
             print(f"✗ Error: Could not open video source: {video_source}")
@@ -433,7 +449,10 @@ Auto-calling ambulance in {Config.AUTO_CALL_DELAY} seconds...
                             time.sleep(0.1)
                         if not self.running or (self._global_stop_event and self._global_stop_event.is_set()):
                             break
-                        video = cv2.VideoCapture(video_source)
+                        if isinstance(video_source, str) and (video_source.startswith('rtsp') or video_source.startswith('http')):
+                            video = cv2.VideoCapture(video_source, cv2.CAP_FFMPEG)
+                        else:
+                            video = cv2.VideoCapture(video_source)
                         continue
                     else:
                         # Video file ended

@@ -438,7 +438,13 @@ const Monitoring = ({ dashboardState }) => {
                     : <div className="camera-frame-placeholder">AWAITING FIRST FRAME...</div>
                 ) : (
                   isBackendReady
-                    ? <StreamImg src="/api/cameras/primary/feed" className="camera-feed-img" alt="Standby feed" />
+                    ? <div className="camera-frame-placeholder" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" style={{ opacity: 0.4 }}>
+                          <rect x="2" y="7" width="15" height="10" rx="1" />
+                          <path d="M17 9l4-2v8l-4-2" />
+                        </svg>
+                        <span style={{ fontSize: '0.7rem', letterSpacing: '0.1em', opacity: 0.5 }}>START SYSTEM TO BEGIN LIVE FEED</span>
+                      </div>
                     : <div className="camera-frame-placeholder">
                         <div style={{ width: 20, height: 20, border: '2px solid rgba(255,255,255,0.1)', borderTopColor: 'var(--primary)', borderRadius: '50%', animation: 'spin 1s linear infinite', marginBottom: 8 }} />
                         CONNECTING TO BACKEND...

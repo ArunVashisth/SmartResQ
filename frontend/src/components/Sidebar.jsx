@@ -33,6 +33,11 @@ const Sidebar = ({ activeView, setActiveView, userRole }) => {
         <span style={{ position: 'absolute', top: -2, right: -2, width: 7, height: 7, borderRadius: '50%', background: '#DC2626', border: '1.5px solid var(--bg-sidebar, #0f172a)' }} />
       </span>
     )},
+    { id: 'developer', label: 'Developer', section: 'MAIN', icon: (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+      </svg>
+    )},
 
     // --- USER ---
     { id: 'profile', label: 'My Profile', section: 'USER', icon: (
@@ -51,11 +56,6 @@ const Sidebar = ({ activeView, setActiveView, userRole }) => {
     { id: 'tech-stack', label: 'Tech Stack', section: 'ADMIN', icon: (
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <polyline points="16 18 22 12 16 6" /><polyline points="8 6 2 12 8 18" />
-      </svg>
-    )},
-    { id: 'developer', label: 'Developer', section: 'ADMIN', icon: (
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
       </svg>
     )},
     { id: 'admin', label: 'Admin Panel', section: 'ADMIN', adminOnly: true, icon: (
