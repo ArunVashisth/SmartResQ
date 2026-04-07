@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import './TechStack/TechStack.css';
+import { API_BASE } from '../utils/api';
 
 /* ── tiny shared styles ──────────────────────────────── */
 const IS = {                // inputStyle
