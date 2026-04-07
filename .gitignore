@@ -98,14 +98,18 @@ model_weights.keras
 *.weights
 *.model
 
-# Configuration and secrets
+# Configuration and secrets — real .env NEVER committed
 .env
 .env.local
 .env.*.local
+.env.production
 config.ini
 secrets.json
 credentials.json
 api_keys.txt
+
+# Allow deployment templates (no real secrets inside)
+!.env.template
 
 # Logs
 *.log
