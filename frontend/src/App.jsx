@@ -74,7 +74,7 @@ function App() {
     setIsActionPending(true);
     setActionError(null);
     try {
-      const res = await fetch('/api/start', {
+      const res = await fetch(`${API_BASE}/api/start`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${localStorage.getItem('auth_token')}` }
       });
@@ -96,7 +96,7 @@ function App() {
     setIsActionPending(true);
     setActionError(null);
     try {
-      const res = await fetch('/api/stop', {
+      const res = await fetch(`${API_BASE}/api/stop`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${localStorage.getItem('auth_token')}` }
       });

@@ -210,7 +210,7 @@ const Auth = ({ onLogin }) => {
     if (resendTimer > 0) return;
     setIsLoading(true); setError(''); setInfo('');
     try {
-      const res  = await fetch('/api/auth/send-otp', {
+      const res  = await fetch(`${API_BASE}/api/auth/send-otp`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: username.trim().toLowerCase() })
       });
