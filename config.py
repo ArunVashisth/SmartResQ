@@ -39,7 +39,7 @@ class Config:
     FAST2SMS_API_KEY = os.getenv("FAST2SMS_API_KEY")
     
     # MongoDB Configuration
-    MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017/smartresq")
+    MONGO_URI = os.getenv("MONGO_URI", "mongodb+srv://arunvashisth80_db_user:arun8080@smartresq.fii5rvi.mongodb.net/")
 
     # Email / SMTP Configuration (for OTP)
     SMTP_HOST     = os.getenv("SMTP_HOST", "smtp.gmail.com")
