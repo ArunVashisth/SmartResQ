@@ -92,20 +92,26 @@ const Developer = () => {
           We are a duo of Computer Science engineers bridging the gap between raw data logic and breathtaking user experiences.
         </motion.p>
 
-        <div style={{ display: 'flex', gap: '2rem', justifyContent: 'center', flexWrap: 'wrap' }}>
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.6 }}>
-            <div style={{ fontWeight: 700, fontSize: '1.1rem', marginBottom: '0.5rem', color: '#1e293b' }}>Arun Vashisth</div>
-            <div style={{ display: 'flex', gap: '0.5rem' }}>
-              <button className="dev-btn" onClick={() => window.open('https://github.com/ArunVashisth', '_blank')}>GitHub</button>
-              <button className="dev-btn-alt" onClick={() => window.location.href='mailto:arunvashisth80@gmail.com'}>Email</button>
+        <div style={{ display: 'flex', gap: '3rem', justifyContent: 'center', flexWrap: 'wrap', marginTop: '1rem' }}>
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.6 }} style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <div style={{ width: 100, height: 100, borderRadius: '50%', overflow: 'hidden', marginBottom: '1rem', border: '3px solid #2563EB', padding: '3px', background: '#ffffff', boxShadow: '0 10px 25px -5px rgba(37,99,235,0.3)' }}>
+              <img src="/arun.png" alt="Arun Vashisth" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
+            </div>
+            <div style={{ fontWeight: 800, fontSize: '1.2rem', marginBottom: '0.6rem', color: '#1e293b' }}>Arun Vashisth</div>
+            <div style={{ display: 'flex', gap: '0.6rem', justifyContent: 'center' }}>
+              <button className="dev-btn" onClick={() => window.open('https://github.com/ArunVashisth', '_blank')} style={{ padding: '0.4rem 1rem', fontSize: '0.8rem' }}>GitHub</button>
+              <button className="dev-btn-alt" onClick={() => window.location.href='mailto:arunvashisth80@gmail.com'} style={{ padding: '0.4rem 1rem', fontSize: '0.8rem' }}>Email</button>
             </div>
           </motion.div>
 
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.8 }}>
-            <div style={{ fontWeight: 700, fontSize: '1.1rem', marginBottom: '0.5rem', color: '#1e293b' }}>Tushar Sharma</div>
-            <div style={{ display: 'flex', gap: '0.5rem' }}>
-              <button className="dev-btn" onClick={() => window.open('https://github.com/TusharSh06', '_blank')}>GitHub</button>
-              <button className="dev-btn-alt" onClick={() => window.location.href='mailto:tsharmak10@gmail.com'}>Email</button>
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.8 }} style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <div style={{ width: 100, height: 100, borderRadius: '50%', overflow: 'hidden', marginBottom: '1rem', border: '3px solid #94A3B8', padding: '3px', background: '#F8FAFC', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94A3B8', fontWeight: 800, fontSize: '1.5rem' }}>
+              TS
+            </div>
+            <div style={{ fontWeight: 800, fontSize: '1.2rem', marginBottom: '0.6rem', color: '#1e293b' }}>Tushar Sharma</div>
+            <div style={{ display: 'flex', gap: '0.6rem', justifyContent: 'center' }}>
+              <button className="dev-btn" onClick={() => window.open('https://github.com/TusharSh06', '_blank')} style={{ padding: '0.4rem 1rem', fontSize: '0.8rem' }}>GitHub</button>
+              <button className="dev-btn-alt" onClick={() => window.location.href='mailto:tsharmak10@gmail.com'} style={{ padding: '0.4rem 1rem', fontSize: '0.8rem' }}>Email</button>
             </div>
           </motion.div>
         </div>
