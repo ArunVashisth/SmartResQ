@@ -646,9 +646,9 @@ const VideoAnalysis = ({ videoAnalysisState, resetVideoAnalysis }) => {
                         borderRadius: '4px', overflow: 'hidden', background: '#e2e8f0',
                         border: '1px solid var(--border)', cursor: 'pointer'
                       }}
-                      onClick={() => setFullScreenImage(acc.photo_path)}
+                      onClick={() => setFullScreenImage(`${API_BASE}${acc.photo_path}`)}
                       >
-                        <img src={acc.photo_path} alt="Accident Frame" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        <img src={`${API_BASE}${acc.photo_path}`} alt="Accident Frame" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                       </div>
                     )}
                     <div style={{ textAlign: 'right' }}>
